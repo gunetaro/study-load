@@ -49,7 +49,7 @@ export function AppProvider({ children, userId }: { children: React.ReactNode; u
   const theme: ThemeColors = { ...THEMES[themeName], ...(settings?.custom_colors || {}) }
 
   const refreshProfile = useCallback(async () => {
-    const { data } = await supabase.from('profiles').select('*').eq('user_id', userId).single()
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
     if (data) setProfile(data)
   }, [userId, supabase])
 

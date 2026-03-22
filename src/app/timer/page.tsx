@@ -21,17 +21,15 @@ export default function AppPage() {
       const { data: prof } = await supabase
         .from('profiles')
         .select('id')
-        .eq('user_id', user.id)
+        .eq('id', user.id)
         .single()
 
       if (!prof) {
         await supabase.from('profiles').insert({
-          user_id: user.id,
-          display_name: user.user_metadata?.full_name || null,
+          id: user.id,
+          name: user.user_metadata?.full_name || null,
           avatar_url: user.user_metadata?.avatar_url || null,
           xp: 0,
-          level: 1,
-          rank: 'ブロンズ',
           selected_title: 'beginner',
         })
       }

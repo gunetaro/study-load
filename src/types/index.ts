@@ -54,13 +54,11 @@ export const THEMES: Record<Theme, ThemeColors> = {
 
 export interface Profile {
   id: string
-  user_id: string
-  display_name: string | null
+  name: string | null
   avatar_url: string | null
-  xp: number
-  level: number
-  rank: string
   selected_title: string | null
+  xp: number
+  created_at: string
 }
 
 export interface Subject {

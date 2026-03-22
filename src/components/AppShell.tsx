@@ -60,7 +60,7 @@ export default function AppShell() {
             padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4,
           }}>
             <span style={{ fontSize: 12, color: theme.accent, fontWeight: 700 }}>
-              Lv.{profile?.level || 1}
+              Lv.{Math.floor((profile?.xp || 0) / 100) + 1}
             </span>
             <span style={{ fontSize: 11, color: theme.textSub }}>
               {profile?.xp || 0}XP

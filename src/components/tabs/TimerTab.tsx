@@ -172,11 +172,9 @@ export default function TimerTab() {
     // XP: 1 XP per minute
     const xpGain = Math.floor(totalSec / 60) * XP_PER_MIN
     if (xpGain > 0) {
-      const { data: prof } = await supabase.from('profiles').select('xp,level').eq('user_id', userId).single()
+      const { data: prof } = await supabase.from('profiles').select('xp').eq('id', userId).single()
       if (prof) {
-        const newXp = prof.xp + xpGain
-        const newLevel = Math.floor(newXp / 100) + 1
-        await supabase.from('profiles').update({ xp: newXp, level: newLevel }).eq('user_id', userId)
+        await supabase.from('profiles').update({ xp: prof.xp + xpGain }).eq('id', userId)
         await refreshProfile()
       }
     }
@@ -221,12 +219,9 @@ export default function TimerTab() {
         return sum + (badge?.xp || 0)
       }, 0)
       if (totalXp > 0) {
-        const { data: prof } = await supabase.from('profiles').select('xp,level').eq('user_id', userId).single()
+        const { data: prof } = await supabase.from('profiles').select('xp').eq('id', userId).single()
         if (prof) {
-          await supabase.from('profiles').update({
-            xp: prof.xp + totalXp,
-            level: Math.floor((prof.xp + totalXp) / 100) + 1,
-          }).eq('user_id', userId)
+          await supabase.from('profiles').update({ xp: prof.xp + totalXp }).eq('id', userId)
         }
       }
       await refreshBadges()

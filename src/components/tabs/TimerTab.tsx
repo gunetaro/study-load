@@ -134,6 +134,7 @@ export default function TimerTab() {
     if (totalSec < 10) { showToast('10秒未満は記録できません'); setSaving(false); return }
 
     const startedAt = new Date(Date.now() - totalSec * 1000).toISOString()
+    console.log('[save] userId:', userId, 'subject_id:', selectedSubject.id)
     const { data: session, error } = await supabase.from('sessions').insert({
       user_id: userId,
       subject_id: selectedSubject.id,
@@ -143,7 +144,12 @@ export default function TimerTab() {
       memo: memo || null,
     }).select().single()
 
-    if (error) { showToast('保存に失敗しました'); setSaving(false); return }
+    if (error) {
+      console.error('[sessions] insert error:', error.code, error.message, error.details, error.hint)
+      showToast('保存に失敗しました')
+      setSaving(false)
+      return
+    }
 
     // Tags
     if (tags.trim() && session) {
@@ -151,7 +157,12 @@ export default function TimerTab() {
         session_id: session.id,
         tag: tag.trim(),
       }))
-      if (tagList.length > 0) await supabase.from('session_tags').insert(tagList)
+      if (tagList.length > 0) {
+        const { error: tagError } = await supabase.from('session_tags').insert(tagList)
+        if (tagError) {
+          console.error('[session_tags] insert error:', tagError.code, tagError.message, tagError.details, tagError.hint)
+        }
+      }
     }
 
     // XP: 1 XP per minute

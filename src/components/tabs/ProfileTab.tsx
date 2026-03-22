@@ -62,12 +62,15 @@ export default function ProfileTab() {
     let avatarUrl = profile?.avatar_url || null
 
     if (editAvatarFile) {
-      const ext = editAvatarFile.name.split('.').pop() || 'jpg'
+      const ext = editAvatarFile.name.split('.').pop()?.toLowerCase() || 'jpg'
       const path = `${userId}.${ext}`
+      console.log('[avatar] uploading:', path, 'type:', editAvatarFile.type, 'size:', editAvatarFile.size)
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(path, editAvatarFile, { upsert: true })
-      if (!uploadError) {
+        .upload(path, editAvatarFile, { upsert: true, contentType: editAvatarFile.type || `image/${ext}` })
+      if (uploadError) {
+        console.error('[avatar] upload error:', JSON.stringify({ message: uploadError.message, name: uploadError.name, cause: (uploadError as any).cause }))
+      } else {
         const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
         avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`
       }

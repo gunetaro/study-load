@@ -136,8 +136,7 @@ export default function TimerTab() {
     const startDate = new Date(startTimeRef.current)
     const date = startDate.toLocaleDateString('en-CA')
     const start_time = startDate.toTimeString().slice(0, 8)
-    console.log('[save] userId:', userId, 'subject_id:', selectedSubject.id, 'date:', date, 'start_time:', start_time, 'duration:', totalSec)
-    const { data: session, error } = await supabase.from('sessions').insert({
+    const insertPayload = {
       user_id: userId,
       subject_id: selectedSubject.id,
       material_id: selectedMaterial?.id || null,
@@ -145,10 +144,12 @@ export default function TimerTab() {
       start_time,
       duration: totalSec,
       memo: memo || null,
-    }).select().single()
+    }
+    console.log('[sessions] insert payload:', JSON.stringify(insertPayload))
+    const { data: session, error } = await supabase.from('sessions').insert(insertPayload).select().single()
 
     if (error) {
-      console.error('[sessions] insert error:', error.code, error.message, error.details, error.hint)
+      console.error('[sessions] insert error:', JSON.stringify({ code: error.code, message: error.message, details: error.details, hint: error.hint }))
       showToast('保存に失敗しました')
       setSaving(false)
       return

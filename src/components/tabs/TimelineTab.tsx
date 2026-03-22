@@ -37,7 +37,7 @@ export default function TimelineTab() {
       .from('sessions')
       .select('*, subjects(*), materials(*), session_tags(*)')
       .eq('user_id', userId)
-      .order('started_at', { ascending: false })
+      .order('created_at', { ascending: false })
 
     const { data } = await query
     const list = data || []
@@ -65,8 +65,7 @@ export default function TimelineTab() {
       if (!hasTags) return false
     }
     if (selectedDay && viewMode === 'calendar') {
-      const sessionDay = s.started_at.split('T')[0]
-      if (sessionDay !== selectedDay) return false
+      if (s.date !== selectedDay) return false
     }
     return true
   })
@@ -102,7 +101,7 @@ export default function TimelineTab() {
   // Group sessions by date for list view
   const grouped: Record<string, Session[]> = {}
   filtered.forEach(s => {
-    const day = s.started_at.split('T')[0]
+    const day = s.date
     if (!grouped[day]) grouped[day] = []
     grouped[day].push(s)
   })
@@ -115,9 +114,9 @@ export default function TimelineTab() {
   const firstDay = new Date(year, month, 1).getDay()
   const monthSessions: Record<string, number> = {}
   sessions.forEach(s => {
-    const day = s.started_at.split('T')[0]
+    const day = s.date
     if (day.startsWith(`${year}-${String(month+1).padStart(2,'0')}`)) {
-      monthSessions[day] = (monthSessions[day] || 0) + s.duration_sec
+      monthSessions[day] = (monthSessions[day] || 0) + s.duration
     }
   })
 
@@ -219,7 +218,7 @@ export default function TimelineTab() {
       ) : (
         sortedDays.map(day => {
           const daySessions = grouped[day]
-          const dayTotal = daySessions.reduce((sum, s) => sum + s.duration_sec, 0)
+          const dayTotal = daySessions.reduce((sum, s) => sum + s.duration, 0)
           const dateObj = new Date(day)
           const dateLabel = dateObj.toLocaleDateString('ja-JP', { month: 'long', day: 'numeric', weekday: 'short' })
           return (
@@ -230,7 +229,7 @@ export default function TimelineTab() {
               </div>
               {daySessions.map(s => {
                 const sub = subject(s.subject_id)
-                const time = new Date(s.started_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+                const time = s.start_time ? s.start_time.slice(0, 5) : ''
                 return (
                   <div key={s.id} style={{
                     background: theme.card, borderRadius: 14, padding: '14px 16px',
@@ -245,7 +244,7 @@ export default function TimelineTab() {
                           <span style={{ fontSize: 11, color: theme.textSub }}>{time}</span>
                         </div>
                         <div style={{ fontSize: 18, fontWeight: 800, color: theme.accent, marginBottom: 4 }}>
-                          {fmtDuration(s.duration_sec)}
+                          {fmtDuration(s.duration)}
                         </div>
                         {s.materials && (
                           <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 4 }}>📖 {s.materials.name}</div>

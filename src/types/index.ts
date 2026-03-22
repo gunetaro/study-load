@@ -86,9 +86,13 @@ export interface Session {
   user_id: string
   subject_id: string
   material_id: string | null
-  started_at: string
-  duration_sec: number
+  date: string
+  start_time: string | null
+  duration: number
+  break_time: number
+  pomo_rounds: number
   memo: string | null
+  created_at: string
   subjects?: Subject
   materials?: Material
   session_tags?: SessionTag[]

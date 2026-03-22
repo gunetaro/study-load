@@ -133,14 +133,17 @@ export default function TimerTab() {
     const totalSec = mode === 'pomodoro' ? (pomoElapsed + (pomoPhase === 'work' ? elapsed % (pomoWork*60) : 0)) : elapsed
     if (totalSec < 10) { showToast('10秒未満は記録できません'); setSaving(false); return }
 
-    const startedAt = new Date(Date.now() - totalSec * 1000).toISOString()
-    console.log('[save] userId:', userId, 'subject_id:', selectedSubject.id)
+    const startDate = new Date(startTimeRef.current)
+    const date = startDate.toLocaleDateString('en-CA')
+    const start_time = startDate.toTimeString().slice(0, 8)
+    console.log('[save] userId:', userId, 'subject_id:', selectedSubject.id, 'date:', date, 'start_time:', start_time, 'duration:', totalSec)
     const { data: session, error } = await supabase.from('sessions').insert({
       user_id: userId,
       subject_id: selectedSubject.id,
       material_id: selectedMaterial?.id || null,
-      started_at: startedAt,
-      duration_sec: totalSec,
+      date,
+      start_time,
+      duration: totalSec,
       memo: memo || null,
     }).select().single()
 
@@ -194,10 +197,10 @@ export default function TimerTab() {
   const checkBadges = async (sessionSec: number) => {
     const { data: todaySessions } = await supabase
       .from('sessions')
-      .select('duration_sec')
+      .select('duration')
       .eq('user_id', userId)
-      .gte('started_at', new Date(new Date().setHours(0,0,0,0)).toISOString())
-    const todayTotal = (todaySessions || []).reduce((sum, s) => sum + s.duration_sec, 0)
+      .gte('date', new Date().toLocaleDateString('en-CA'))
+    const todayTotal = (todaySessions || []).reduce((sum, s) => sum + s.duration, 0)
 
     const newBadges: string[] = []
     const hasBadge = (key: string) => badges.some(b => b.badge_key === key)

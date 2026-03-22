@@ -21,8 +21,8 @@ function getHeatmapData(sessions: Session[]) {
     d.setDate(d.getDate() - i)
     const dateStr = d.toISOString().split('T')[0]
     const sec = sessions
-      .filter(s => s.started_at.startsWith(dateStr))
-      .reduce((sum, s) => sum + s.duration_sec, 0)
+      .filter(s => s.date === dateStr)
+      .reduce((sum, s) => sum + s.duration, 0)
     data.push({ date: dateStr, sec })
   }
   return data
@@ -42,7 +42,7 @@ export default function StatsTab() {
       .from('sessions')
       .select('*, session_tags(*)')
       .eq('user_id', userId)
-      .order('started_at', { ascending: false })
+      .order('created_at', { ascending: false })
     setSessions(data || [])
     setLoading(false)
   }, [userId, supabase])
@@ -54,18 +54,18 @@ export default function StatsTab() {
     const now = new Date()
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
     if (period === 'day') {
-      return sessions.filter(s => s.started_at.startsWith(today.toISOString().split('T')[0]))
+      return sessions.filter(s => s.date === today.toLocaleDateString('en-CA'))
     } else if (period === 'week') {
       const weekStart = getWeekStart(now)
-      return sessions.filter(s => new Date(s.started_at) >= weekStart)
+      return sessions.filter(s => new Date(s.date) >= weekStart)
     } else {
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-      return sessions.filter(s => new Date(s.started_at) >= monthStart)
+      return sessions.filter(s => new Date(s.date) >= monthStart)
     }
   }
 
   const periodSessions = getPeriodSessions()
-  const totalSec = periodSessions.reduce((sum, s) => sum + s.duration_sec, 0)
+  const totalSec = periodSessions.reduce((sum, s) => sum + s.duration, 0)
 
   // Bar chart data
   const getBarData = () => {
@@ -74,12 +74,10 @@ export default function StatsTab() {
       // 24 hours
       const hours: { label: string; sec: number }[] = []
       for (let h = 0; h < 24; h++) {
+        const todayStr = now.toLocaleDateString('en-CA')
         const sec = sessions
-          .filter(s => {
-            const d = new Date(s.started_at)
-            return d.toDateString() === now.toDateString() && d.getHours() === h
-          })
-          .reduce((sum, s) => sum + s.duration_sec, 0)
+          .filter(s => s.date === todayStr && parseInt(s.start_time?.slice(0, 2) ?? '0') === h)
+          .reduce((sum, s) => sum + s.duration, 0)
         hours.push({ label: `${h}時`, sec })
       }
       return hours.filter(h => h.sec > 0 || h.label === `${now.getHours()}時`)
@@ -89,7 +87,7 @@ export default function StatsTab() {
         const d = new Date(getWeekStart(now))
         d.setDate(d.getDate() + i)
         const dateStr = d.toISOString().split('T')[0]
-        const sec = sessions.filter(s => s.started_at.startsWith(dateStr)).reduce((sum, s) => sum + s.duration_sec, 0)
+        const sec = sessions.filter(s => s.date === dateStr).reduce((sum, s) => sum + s.duration, 0)
         return { label: weekDays[i], sec }
       })
     } else {
@@ -99,7 +97,7 @@ export default function StatsTab() {
         d.setDate(d.getDate() + i)
         if (d.getMonth() !== now.getMonth()) return null
         const dateStr = d.toISOString().split('T')[0]
-        const sec = sessions.filter(s => s.started_at.startsWith(dateStr)).reduce((sum, s) => sum + s.duration_sec, 0)
+        const sec = sessions.filter(s => s.date === dateStr).reduce((sum, s) => sum + s.duration, 0)
         return { label: String(d.getDate()), sec }
       }).filter(Boolean) as { label: string; sec: number }[]
     }
@@ -111,21 +109,21 @@ export default function StatsTab() {
   // Subject breakdown
   const subjectData = subjects.map(s => ({
     ...s,
-    sec: periodSessions.filter(sess => sess.subject_id === s.id).reduce((sum, sess) => sum + sess.duration_sec, 0),
+    sec: periodSessions.filter(sess => sess.subject_id === s.id).reduce((sum, sess) => sum + sess.duration, 0),
   })).filter(s => s.sec > 0).sort((a, b) => b.sec - a.sec)
 
   // Tag breakdown
   const tagData: Record<string, number> = {}
   periodSessions.forEach(s => {
     ;(s.session_tags as any[] || []).forEach((t: any) => {
-      tagData[t.tag] = (tagData[t.tag] || 0) + s.duration_sec
+      tagData[t.tag] = (tagData[t.tag] || 0) + s.duration
     })
   })
   const tagList = Object.entries(tagData).sort((a, b) => b[1] - a[1]).slice(0, 8)
 
   // Streak
   const calcStreak = () => {
-    const days = new Set(sessions.map(s => s.started_at.split('T')[0]))
+    const days = new Set(sessions.map(s => s.date))
     let streak = 0
     let current = new Date()
     while (true) {

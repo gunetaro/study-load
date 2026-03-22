@@ -18,8 +18,11 @@ export default function ProfileTab() {
   const [shareImgUrl, setShareImgUrl] = useState<string | null>(null)
   const [editModal, setEditModal] = useState(false)
   const [editName, setEditName] = useState('')
+  const [editAvatarFile, setEditAvatarFile] = useState<File | null>(null)
+  const [editAvatarPreview, setEditAvatarPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const displayName = profile?.name || userMeta?.full_name || 'ユーザー'
   const displayAvatar = profile?.avatar_url || userMeta?.avatar_url || ''
@@ -39,14 +42,44 @@ export default function ProfileTab() {
 
   const handleEditOpen = () => {
     setEditName(profile?.name || userMeta?.full_name || '')
+    setEditAvatarFile(null)
+    setEditAvatarPreview(null)
     setEditModal(true)
+  }
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setEditAvatarFile(file)
+    const reader = new FileReader()
+    reader.onload = () => setEditAvatarPreview(reader.result as string)
+    reader.readAsDataURL(file)
   }
 
   const handleEditSave = async () => {
     if (!userId) return
     setSaving(true)
+
+    let avatarUrl: string | null = profile?.avatar_url || null
+    if (editAvatarFile) {
+      const ext = editAvatarFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const path = `${userId}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(path, editAvatarFile, { upsert: true, contentType: editAvatarFile.type || `image/${ext}` })
+      if (uploadError) {
+        console.error('[avatar] upload error:', uploadError.message)
+        showToast('画像のアップロードに失敗しました')
+        setSaving(false)
+        return
+      }
+      const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+      avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`
+    }
+
     await supabase.from('profiles').update({
       name: editName.trim() || null,
+      ...(editAvatarFile ? { avatar_url: avatarUrl } : {}),
     }).eq('id', userId)
     await refreshProfile()
     setSaving(false)
@@ -387,6 +420,43 @@ export default function ProfileTab() {
       {/* Edit Profile Modal */}
       <Modal open={editModal} onClose={() => setEditModal(false)} title="プロフィール編集">
         <div>
+          {/* Avatar */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              style={{ position: 'relative', cursor: 'pointer', width: 80, height: 80 }}
+            >
+              {(editAvatarPreview || displayAvatar) ? (
+                <img
+                  src={editAvatarPreview || displayAvatar}
+                  alt=""
+                  style={{ width: 80, height: 80, borderRadius: '50%', border: `3px solid ${theme.accent}`, objectFit: 'cover' }}
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <div style={{ width: 80, height: 80, borderRadius: '50%', background: theme.accentLight, border: `3px solid ${theme.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
+                  👤
+                </div>
+              )}
+              <div style={{
+                position: 'absolute', bottom: 0, right: 0,
+                background: theme.accent, borderRadius: '50%',
+                width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 12, color: '#fff', border: `2px solid ${theme.card}`,
+              }}>
+                📷
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: theme.textSub, marginTop: 6 }}>タップして変更</div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handleAvatarChange}
+            />
+          </div>
+
           {/* Name */}
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>表示名</label>

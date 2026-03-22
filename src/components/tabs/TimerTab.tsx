@@ -326,10 +326,13 @@ export default function TimerTab() {
                 borderRadius: 12, padding: '14px 16px', cursor: 'pointer', marginBottom: 8,
                 display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
               }}>
-                <span style={{ fontSize: 20 }}>📖</span>
+                {m.image_url ? (
+                  <img src={m.image_url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                ) : (
+                  <span style={{ fontSize: 20, width: 40, textAlign: 'center', flexShrink: 0 }}>📖</span>
+                )}
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{m.name}</div>
-                  {m.url && <div style={{ fontSize: 11, color: theme.textSub }}>{m.url}</div>}
                 </div>
               </button>
             ))}

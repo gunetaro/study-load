@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
@@ -9,7 +9,7 @@ const ICONS = ['📚','✏️','📐','🧪','🌍','📝','💻','🎵','🏋�
 const COLORS = ['#5B8DEF','#EF8B5B','#6BC9A4','#C97BB6','#E8B44A','#EF5B5B','#5BEFD0','#B45BEF','#8BC97B','#C9B47B']
 
 interface EditSubject { id?: string; name: string; icon: string; color: string }
-interface EditMaterial { id?: string; name: string; url: string; type: string; subject_id: string }
+interface EditMaterial { id?: string; name: string; subject_id: string; current_image_url?: string | null }
 
 export default function MaterialsTab() {
   const { subjects, refreshSubjects, userId, theme, showToast } = useApp()
@@ -26,8 +26,11 @@ export default function MaterialsTab() {
 
   // Material edit
   const [materialModal, setMaterialModal] = useState(false)
-  const [editMaterial, setEditMaterial] = useState<EditMaterial>({ name: '', url: '', type: 'book', subject_id: '' })
+  const [editMaterial, setEditMaterial] = useState<EditMaterial>({ name: '', subject_id: '' })
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [savingMaterial, setSavingMaterial] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
   const loadMaterials = useCallback(async (subjectId: string) => {
     if (materials[subjectId]) return
@@ -36,6 +39,13 @@ export default function MaterialsTab() {
     setMaterials(prev => ({ ...prev, [subjectId]: data || [] }))
     setLoadingMats(null)
   }, [materials, userId, supabase])
+
+  const reloadMaterials = useCallback(async (subjectId: string) => {
+    setLoadingMats(subjectId)
+    const { data } = await supabase.from('materials').select('*').eq('user_id', userId).eq('subject_id', subjectId)
+    setMaterials(prev => ({ ...prev, [subjectId]: data || [] }))
+    setLoadingMats(null)
+  }, [userId, supabase])
 
   const toggleExpand = async (subjectId: string) => {
     if (expandedSubject === subjectId) {
@@ -94,40 +104,64 @@ export default function MaterialsTab() {
 
   // Material CRUD
   const openAddMaterial = (subjectId: string) => {
-    setEditMaterial({ name: '', url: '', type: 'book', subject_id: subjectId })
+    setEditMaterial({ name: '', subject_id: subjectId })
+    setImageFile(null)
+    setImagePreview(null)
     setMaterialModal(true)
   }
 
   const openEditMaterial = (m: Material) => {
-    setEditMaterial({ id: m.id, name: m.name, url: m.url || '', type: m.type, subject_id: m.subject_id })
+    setEditMaterial({ id: m.id, name: m.name, subject_id: m.subject_id, current_image_url: m.image_url })
+    setImageFile(null)
+    setImagePreview(m.image_url || null)
     setMaterialModal(true)
+  }
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImageFile(file)
+    const reader = new FileReader()
+    reader.onload = () => setImagePreview(reader.result as string)
+    reader.readAsDataURL(file)
   }
 
   const saveMaterial = async () => {
     if (!editMaterial.name.trim()) { showToast('教材名を入力してください'); return }
     setSavingMaterial(true)
+
+    let imageUrl: string | null = editMaterial.current_image_url ?? null
+    if (imageFile) {
+      const ext = imageFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const path = `${userId}/${editMaterial.id || Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('materials')
+        .upload(path, imageFile, { upsert: true, contentType: imageFile.type || `image/${ext}` })
+      if (uploadError) {
+        console.error('[material image] upload error:', uploadError.message)
+        showToast('画像のアップロードに失敗しました')
+        setSavingMaterial(false)
+        return
+      }
+      const { data: urlData } = supabase.storage.from('materials').getPublicUrl(path)
+      imageUrl = `${urlData.publicUrl}?t=${Date.now()}`
+    }
+
     if (editMaterial.id) {
       await supabase.from('materials').update({
         name: editMaterial.name,
-        url: editMaterial.url || null,
-        type: editMaterial.type,
+        ...(imageFile ? { image_url: imageUrl } : {}),
       }).eq('id', editMaterial.id)
     } else {
       await supabase.from('materials').insert({
         user_id: userId,
         subject_id: editMaterial.subject_id,
         name: editMaterial.name,
-        url: editMaterial.url || null,
-        type: editMaterial.type,
+        image_url: imageUrl,
       })
     }
-    // Reload
-    setMaterials(prev => {
-      const updated = { ...prev }
-      delete updated[editMaterial.subject_id]
-      return updated
-    })
-    await loadMaterials(editMaterial.subject_id)
+
+    await reloadMaterials(editMaterial.subject_id)
     setSavingMaterial(false)
     setMaterialModal(false)
     showToast(editMaterial.id ? '教材を更新しました' : '教材を追加しました')
@@ -139,8 +173,6 @@ export default function MaterialsTab() {
     setMaterials(prev => ({ ...prev, [m.subject_id]: (prev[m.subject_id] || []).filter(x => x.id !== m.id) }))
     showToast('削除しました')
   }
-
-  const TYPE_ICONS: Record<string, string> = { book: '📖', web: '🌐', video: '🎥', note: '📝', other: '📦' }
 
   return (
     <div>
@@ -167,9 +199,8 @@ export default function MaterialsTab() {
             style={{
               background: theme.card, borderRadius: expandedSubject === s.id ? '14px 14px 0 0' : 14,
               padding: '14px 16px', cursor: 'pointer',
-              borderLeft: `4px solid ${s.color}`,
               border: `1px solid ${theme.border}`,
-              borderLeftWidth: 4,
+              borderLeftWidth: 4, borderLeftColor: s.color,
               display: 'flex', alignItems: 'center', gap: 10,
             }}
           >
@@ -204,14 +235,17 @@ export default function MaterialsTab() {
 
               {(materials[s.id] || []).map(m => (
                 <div key={m.id} style={{
-                  background: theme.card, borderRadius: 10, padding: '12px 14px',
+                  background: theme.card, borderRadius: 10, padding: '10px 14px',
                   marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10,
                   border: `1px solid ${theme.border}`,
                 }}>
-                  <span style={{ fontSize: 18 }}>{TYPE_ICONS[m.type] || '📦'}</span>
+                  {m.image_url ? (
+                    <img src={m.image_url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                  ) : (
+                    <span style={{ fontSize: 24, width: 40, textAlign: 'center', flexShrink: 0 }}>📖</span>
+                  )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{m.name}</div>
-                    {m.url && <div style={{ fontSize: 11, color: theme.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.url}</div>}
                   </div>
                   <button onClick={() => openEditMaterial(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>✏️</button>
                   <button onClick={() => deleteMaterial(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: theme.danger }}>🗑</button>
@@ -277,7 +311,50 @@ export default function MaterialsTab() {
       {/* Material Modal */}
       <Modal open={materialModal} onClose={() => setMaterialModal(false)} title={editMaterial.id ? '教材を編集' : '教材を追加'}>
         <div>
-          <div style={{ marginBottom: 12 }}>
+          {/* Image upload */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 8 }}>サムネイル画像（任意）</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 64, height: 64, borderRadius: 12, overflow: 'hidden', flexShrink: 0,
+                background: theme.cardAlt, border: `1px solid ${theme.border}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {imagePreview ? (
+                  <img src={imagePreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: 28 }}>📖</span>
+                )}
+              </div>
+              <button
+                onClick={() => imageInputRef.current?.click()}
+                style={{
+                  padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  border: `1.5px solid ${theme.border}`, background: theme.card, color: theme.text,
+                }}
+              >
+                {imagePreview ? '変更' : '画像を選択'}
+              </button>
+              {imagePreview && (
+                <button
+                  onClick={() => { setImageFile(null); setImagePreview(null) }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: theme.danger }}
+                >
+                  削除
+                </button>
+              )}
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleImageChange}
+              />
+            </div>
+          </div>
+
+          {/* Name */}
+          <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>教材名</label>
             <input
               value={editMaterial.name}
@@ -290,35 +367,7 @@ export default function MaterialsTab() {
               }}
             />
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>種類</label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {Object.entries({ book: '📖 本', web: '🌐 Web', video: '🎥 動画', note: '📝 ノート', other: '📦 その他' }).map(([key, label]) => (
-                <button key={key} onClick={() => setEditMaterial(p => ({ ...p, type: key }))} style={{
-                  padding: '6px 12px', borderRadius: 10, fontSize: 13, cursor: 'pointer',
-                  border: `1.5px solid ${editMaterial.type===key ? theme.accent : theme.border}`,
-                  background: editMaterial.type===key ? theme.accentLight : theme.card,
-                  color: editMaterial.type===key ? theme.accent : theme.textSub,
-                }}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>URL（任意）</label>
-            <input
-              value={editMaterial.url}
-              onChange={e => setEditMaterial(p => ({ ...p, url: e.target.value }))}
-              placeholder="https://..."
-              type="url"
-              style={{
-                width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
-                background: theme.cardAlt, color: theme.text, fontSize: 14,
-                padding: '10px 12px', fontFamily: 'inherit',
-              }}
-            />
-          </div>
+
           <button onClick={saveMaterial} disabled={savingMaterial} style={{
             width: '100%', background: theme.accent, color: '#fff',
             border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: 'pointer', fontSize: 15,

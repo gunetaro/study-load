@@ -75,8 +75,8 @@ export interface Material {
   user_id: string
   subject_id: string
   name: string
-  url: string | null
-  type: string
+  image_url: string | null
+  created_at: string
 }
 
 export interface Session {

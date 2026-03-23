@@ -16,7 +16,7 @@ function getWeekStart(date: Date) {
 function getHeatmapData(sessions: Session[]) {
   const today = new Date()
   const data: { date: string; sec: number }[] = []
-  for (let i = 364; i >= 0; i--) {
+  for (let i = 83; i >= 0; i--) {
     const d = new Date(today)
     d.setDate(d.getDate() - i)
     const dateStr = d.toISOString().split('T')[0]
@@ -263,14 +263,14 @@ export default function StatsTab() {
 
       {/* Heatmap */}
       <div style={{ background: theme.card, borderRadius: 14, padding: '14px 16px', marginBottom: 16, border: `1px solid ${theme.border}` }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 10 }}>学習ヒートマップ（過去52週）</div>
-        <div style={{ overflowX: 'auto' }}>
-          <div style={{ display: 'grid', gridTemplateRows: 'repeat(7, 10px)', gridAutoFlow: 'column', gap: 2, width: 'max-content' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 10 }}>学習ヒートマップ（直近12週）</div>
+        <div>
+          <div style={{ display: 'grid', gridTemplateRows: 'repeat(7, 11px)', gridAutoFlow: 'column', gap: 2 }}>
             {heatmapData.map((d, i) => (
               <div
                 key={i}
                 title={`${d.date}: ${fmtDuration(d.sec)}`}
-                style={{ width: 10, height: 10, borderRadius: 2, background: getHeatColor(d.sec) }}
+                style={{ width: 11, height: 11, borderRadius: 2, background: getHeatColor(d.sec) }}
               />
             ))}
           </div>

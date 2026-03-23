@@ -3,12 +3,12 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
+import { SubjectIconDisplay } from '@/components/ui/SubjectIconPicker'
 import { fmtTime, fmtDuration, BADGES, XP_PER_MIN, Subject, Material } from '@/types'
 
 type TimerMode = 'normal' | 'pomodoro'
 type TimerState = 'idle' | 'subject' | 'material' | 'running' | 'paused' | 'saving' | 'pomo_break'
-
-const ICONS = ['📚','✏️','📐','🧪','🌍','📝','💻','🎵','🏋️','🎨','📊','🔬','📖','🧮','🗺️']
+type DisplayMode = 'timer' | 'clock'
 
 export default function TimerTab() {
   const { subjects, refreshSubjects, userId, theme, settings, showToast, refreshProfile, refreshBadges, badges } = useApp()
@@ -24,6 +24,8 @@ export default function TimerTab() {
   const [tags, setTags] = useState('')
   const [showSave, setShowSave] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [displayMode, setDisplayMode] = useState<DisplayMode>('timer')
+  const [clockTime, setClockTime] = useState(new Date())
 
   // Pomodoro
   const pomoWork = settings?.pomo_settings?.work ?? 25
@@ -89,6 +91,14 @@ export default function TimerTab() {
     }
     return () => clearInterval(intervalRef.current!)
   }, [state, mode, pomoPhase, pomoRound, pomoRounds, pomoWork, pomoShort, showToast])
+
+  // Clock tick (fullscreen時計モード用)
+  const isFullscreen = state === 'running' || state === 'paused' || state === 'pomo_break'
+  useEffect(() => {
+    if (!isFullscreen) return
+    const id = setInterval(() => setClockTime(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [isFullscreen])
 
   const loadMaterials = async (subjectId: string) => {
     const { data } = await supabase
@@ -288,7 +298,7 @@ export default function TimerTab() {
             onMouseEnter={e => (e.currentTarget.style.borderColor = s.color)}
             onMouseLeave={e => (e.currentTarget.style.borderColor = theme.border)}
             >
-              <span style={{ fontSize: 26 }}>{s.icon}</span>
+              <SubjectIconDisplay icon={s.icon} size={32} />
               <span style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>{s.name}</span>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
             </button>
@@ -305,7 +315,7 @@ export default function TimerTab() {
           ← 戻る
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-          <span style={{ fontSize: 28 }}>{selectedSubject?.icon}</span>
+          <SubjectIconDisplay icon={selectedSubject?.icon || '📚'} size={28} />
           <span style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>{selectedSubject?.name}</span>
         </div>
 
@@ -342,141 +352,196 @@ export default function TimerTab() {
     )
   }
 
-  if (state === 'pomo_break') {
+  // ── フルスクリーン（running / paused / pomo_break）──
+  if (isFullscreen) {
+    const subjectColor = selectedSubject?.color || theme.accent
+    const clockHHMM = `${String(clockTime.getHours()).padStart(2,'0')}:${String(clockTime.getMinutes()).padStart(2,'0')}`
+    const clockSS = `:${String(clockTime.getSeconds()).padStart(2,'0')}`
+
     return (
-      <div style={{ textAlign: 'center', paddingTop: 40 }}>
-        <div style={{ fontSize: 64, marginBottom: 16 }}>☕</div>
-        <div style={{ fontSize: 24, fontWeight: 700, color: theme.text, marginBottom: 8 }}>
-          休憩タイム
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: theme.bg,
+        display: 'flex', flexDirection: 'column',
+        fontFamily: "'DM Sans', 'Hiragino Sans', 'Noto Sans JP', sans-serif",
+      }}>
+        {/* 教科カラーの薄いオーバーレイ */}
+        <div style={{
+          position: 'absolute', inset: 0, background: subjectColor, opacity: 0.07, pointerEvents: 'none',
+        }} />
+
+        {/* 中央コンテンツ */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 1, padding: '0 24px', textAlign: 'center' }}>
+
+          {/* 教科情報 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <SubjectIconDisplay icon={selectedSubject?.icon || '📚'} size={28} />
+            <span style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>{selectedSubject?.name}</span>
+          </div>
+          {selectedMaterial && (
+            <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 8 }}>📖 {selectedMaterial.name}</div>
+          )}
+
+          {state === 'pomo_break' ? (
+            /* ── ポモドーロ休憩 ── */
+            <div>
+              <div style={{ fontSize: 52, marginBottom: 8 }}>☕</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: theme.text, marginBottom: 4 }}>休憩タイム</div>
+              <div style={{ fontSize: 14, color: theme.textSub, marginBottom: 20 }}>{pomoRound}/{pomoRounds} ラウンド完了</div>
+              <div style={{ fontSize: 72, fontWeight: 900, color: subjectColor, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1 }}>
+                {fmtTime(pomoRemaining)}
+              </div>
+              <div style={{ fontSize: 13, color: theme.textSub, marginTop: 12 }}>累計: {fmtDuration(pomoElapsed)}</div>
+            </div>
+          ) : (
+            /* ── タイマー / 時計 ── */
+            <div style={{ width: '100%' }}>
+              {mode === 'pomodoro' && (
+                <div style={{ fontSize: 12, color: subjectColor, marginBottom: 12, fontWeight: 600 }}>
+                  {pomoPhase === 'work' ? `🍅 作業 ${pomoRound}/${pomoRounds}` : '☕ 休憩'}
+                </div>
+              )}
+
+              {/* モード切替ボタン */}
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 20 }}>
+                {(['timer', 'clock'] as const).map(m => (
+                  <button key={m} onClick={() => setDisplayMode(m)} style={{
+                    padding: '6px 16px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+                    background: displayMode === m ? subjectColor : theme.cardAlt,
+                    color: displayMode === m ? '#fff' : theme.textSub,
+                  }}>
+                    {m === 'timer' ? '⏱ タイマー' : '🕐 時計'}
+                  </button>
+                ))}
+              </div>
+
+              {displayMode === 'timer' ? (
+                <div style={{ fontSize: 80, fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -3, lineHeight: 1 }}>
+                  {mode === 'pomodoro' ? fmtTime(pomoRemaining) : fmtTime(elapsed)}
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: 80, fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -3, lineHeight: 1 }}>
+                    {clockHHMM}
+                  </div>
+                  <div style={{ fontSize: 28, color: theme.textSub, fontVariantNumeric: 'tabular-nums', marginTop: 4, fontWeight: 400 }}>
+                    {clockSS}
+                  </div>
+                </div>
+              )}
+
+              {mode === 'pomodoro' && (
+                <div style={{ fontSize: 14, color: theme.textSub, marginTop: 16 }}>
+                  累計: {fmtDuration(pomoElapsed + elapsed)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-        <div style={{ fontSize: 16, color: theme.textSub, marginBottom: 8 }}>
-          {pomoRound}/{pomoRounds} ラウンド完了
-        </div>
-        <div style={{ fontSize: 48, fontWeight: 900, color: theme.accent, marginBottom: 24, fontVariantNumeric: 'tabular-nums' }}>
-          {fmtTime(pomoRemaining)}
-        </div>
-        <div style={{ fontSize: 14, color: theme.textSub, marginBottom: 24 }}>
-          累計: {fmtDuration(pomoElapsed)}
-        </div>
-        <button onClick={handleBreakResume} style={{
-          background: theme.accent, color: '#fff', border: 'none',
-          borderRadius: 16, padding: '16px 40px', fontSize: 16, fontWeight: 700, cursor: 'pointer',
+
+        {/* ── 下部ボタン ── */}
+        <div style={{
+          position: 'relative', zIndex: 1,
+          padding: '20px 32px',
+          paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
+          display: 'flex', gap: 16, justifyContent: 'center',
         }}>
-          次のラウンド開始
-        </button>
-        <br/>
-        <button onClick={handleStop} style={{
-          background: 'none', border: 'none', color: theme.textSub,
-          fontSize: 13, cursor: 'pointer', marginTop: 16,
-        }}>
-          終了して記録する
-        </button>
+          {state === 'pomo_break' ? (
+            <>
+              <button onClick={handleBreakResume} style={{
+                flex: 1, padding: '18px', borderRadius: 16,
+                background: subjectColor, color: '#fff', border: 'none',
+                fontWeight: 700, fontSize: 16, cursor: 'pointer',
+              }}>
+                次のラウンド開始
+              </button>
+              <button onClick={handleStop} style={{
+                padding: '18px 20px', borderRadius: 16,
+                background: theme.cardAlt, color: theme.textSub, border: 'none',
+                fontWeight: 600, fontSize: 14, cursor: 'pointer',
+              }}>
+                終了
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={handlePause} style={{
+                width: 72, height: 72, borderRadius: '50%',
+                background: state === 'paused' ? subjectColor : theme.cardAlt,
+                border: `2px solid ${state === 'paused' ? subjectColor : theme.border}`,
+                fontSize: 26, cursor: 'pointer', color: state === 'paused' ? '#fff' : theme.text,
+              }}>
+                {state === 'paused' ? '▶' : '⏸'}
+              </button>
+              <button onClick={handleStop} style={{
+                width: 72, height: 72, borderRadius: '50%',
+                background: theme.danger, border: 'none',
+                fontSize: 26, cursor: 'pointer', color: '#fff',
+              }}>
+                ⏹
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* 保存モーダル */}
+        <Modal open={showSave} onClose={() => setShowSave(false)} title="記録を保存">
+          <div style={{ textAlign: 'left' }}>
+            <div style={{ marginBottom: 16, padding: '12px 16px', background: theme.accentLight, borderRadius: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: 13, color: theme.textSub }}>勉強時間</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: theme.accent }}>
+                {fmtDuration(mode === 'pomodoro' ? pomoElapsed : elapsed)}
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>メモ</label>
+              <textarea
+                value={memo}
+                onChange={e => setMemo(e.target.value)}
+                placeholder="今日の学習メモ..."
+                rows={3}
+                style={{
+                  width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
+                  background: theme.cardAlt, color: theme.text, fontSize: 14,
+                  padding: '10px 12px', resize: 'none', fontFamily: 'inherit',
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>タグ（カンマ区切り）</label>
+              <input
+                value={tags}
+                onChange={e => setTags(e.target.value)}
+                placeholder="例: 過去問, 暗記, 復習"
+                style={{
+                  width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
+                  background: theme.cardAlt, color: theme.text, fontSize: 14,
+                  padding: '10px 12px', fontFamily: 'inherit',
+                }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleCancel} style={{
+                flex: 1, padding: '14px', borderRadius: 12,
+                border: `1px solid ${theme.border}`, background: theme.card,
+                color: theme.textSub, fontWeight: 700, cursor: 'pointer', fontSize: 14,
+              }}>
+                破棄
+              </button>
+              <button onClick={handleSave} disabled={saving} style={{
+                flex: 2, padding: '14px', borderRadius: 12,
+                background: theme.accent, color: '#fff',
+                border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 14,
+                opacity: saving ? 0.7 : 1,
+              }}>
+                {saving ? '保存中...' : '保存する'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       </div>
     )
   }
 
-  // Running / Paused
-  return (
-    <div style={{ textAlign: 'center', paddingTop: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 24 }}>{selectedSubject?.icon}</span>
-        <span style={{ fontSize: 16, fontWeight: 700, color: theme.text }}>{selectedSubject?.name}</span>
-      </div>
-      {selectedMaterial && (
-        <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 8 }}>📖 {selectedMaterial.name}</div>
-      )}
-      {mode === 'pomodoro' && (
-        <div style={{ fontSize: 12, color: theme.accent, marginBottom: 4, fontWeight: 600 }}>
-          {pomoPhase === 'work' ? `🍅 作業 ${pomoRound}/${pomoRounds}` : '☕ 休憩'}
-        </div>
-      )}
-      <div style={{
-        fontSize: 72, fontWeight: 900, color: theme.text,
-        fontVariantNumeric: 'tabular-nums', lineHeight: 1,
-        marginBottom: 8, letterSpacing: -2,
-      }}>
-        {mode === 'pomodoro' ? fmtTime(pomoRemaining) : fmtTime(elapsed)}
-      </div>
-      {mode === 'pomodoro' && (
-        <div style={{ fontSize: 14, color: theme.textSub, marginBottom: 24 }}>
-          累計: {fmtDuration(pomoElapsed + elapsed)}
-        </div>
-      )}
-      {mode !== 'pomodoro' && <div style={{ marginBottom: 32 }} />}
-
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-        <button onClick={handlePause} style={{
-          width: 72, height: 72, borderRadius: '50%',
-          background: state === 'paused' ? theme.accent : theme.cardAlt,
-          border: `2px solid ${theme.border}`,
-          fontSize: 24, cursor: 'pointer',
-        }}>
-          {state === 'paused' ? '▶' : '⏸'}
-        </button>
-        <button onClick={handleStop} style={{
-          width: 72, height: 72, borderRadius: '50%',
-          background: theme.danger, border: 'none',
-          fontSize: 24, cursor: 'pointer', color: '#fff',
-        }}>
-          ⏹
-        </button>
-      </div>
-
-      {/* Save Modal */}
-      <Modal open={showSave} onClose={() => setShowSave(false)} title="記録を保存">
-        <div style={{ textAlign: 'left' }}>
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: theme.accentLight, borderRadius: 12, textAlign: 'center' }}>
-            <div style={{ fontSize: 13, color: theme.textSub }}>勉強時間</div>
-            <div style={{ fontSize: 32, fontWeight: 900, color: theme.accent }}>
-              {fmtDuration(mode === 'pomodoro' ? pomoElapsed : elapsed)}
-            </div>
-          </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>メモ</label>
-            <textarea
-              value={memo}
-              onChange={e => setMemo(e.target.value)}
-              placeholder="今日の学習メモ..."
-              rows={3}
-              style={{
-                width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
-                background: theme.cardAlt, color: theme.text, fontSize: 14,
-                padding: '10px 12px', resize: 'none', fontFamily: 'inherit',
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>タグ（カンマ区切り）</label>
-            <input
-              value={tags}
-              onChange={e => setTags(e.target.value)}
-              placeholder="例: 過去問, 暗記, 復習"
-              style={{
-                width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
-                background: theme.cardAlt, color: theme.text, fontSize: 14,
-                padding: '10px 12px', fontFamily: 'inherit',
-              }}
-            />
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleCancel} style={{
-              flex: 1, padding: '14px', borderRadius: 12,
-              border: `1px solid ${theme.border}`, background: theme.card,
-              color: theme.textSub, fontWeight: 700, cursor: 'pointer', fontSize: 14,
-            }}>
-              破棄
-            </button>
-            <button onClick={handleSave} disabled={saving} style={{
-              flex: 2, padding: '14px', borderRadius: 12,
-              background: theme.accent, color: '#fff',
-              border: 'none', fontWeight: 700, cursor: 'pointer', fontSize: 14,
-              opacity: saving ? 0.7 : 1,
-            }}>
-              {saving ? '保存中...' : '保存する'}
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  )
+  return null
 }

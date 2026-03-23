@@ -160,7 +160,7 @@ export default function ProfileTab() {
     if (!ctx) return
 
     const T = THEMES[themeName]
-    const L = 64, R = 1136, CW = R - L
+    const L = 74, R = 1126, CW = R - L  // +10px each side (was 64/1136)
     const FF = '"Helvetica Neue", Arial, sans-serif'
     const sf = (size: number, w: 400 | 600 | 700 = 400) => {
       ctx.font = `${w === 400 ? 'normal' : w} ${size}px ${FF}`
@@ -168,11 +168,12 @@ export default function ProfileTab() {
 
     // ── Pre-calculate content height for vertical centering ──
     const CARDS_H = 90
-    let contentH = 60 + 30 + CARDS_H + 30 + 30 // header + gap + cards + gap + records label
+    // header(date+name): 36, gap→cards: 42, cards: 90, gap→records: 42, records label: 30
+    let contentH = 36 + 42 + CARDS_H + 42 + 30
     if (totalSec === 0) {
       contentH += 60
     } else {
-      contentH += 30 + 52 + 24 + 32 + topSubj.length * 46 + (restSubj.length > 0 ? 24 : 0)
+      contentH += 38 + 44 + 24 + 40 + topSubj.length * 52 + (restSubj.length > 0 ? 24 : 0)
     }
     const startY = Math.max(40, Math.floor((630 - contentH) / 2))
 
@@ -184,28 +185,26 @@ export default function ProfileTab() {
 
     let y = startY
 
-    // ── Header ──
-    sf(20)
-    ctx.fillStyle = T.textSub
-    ctx.fillText('Study Load', L, y + 18)
+    // ── Header (no "Study Load" title — footer has #StudyLoad) ──
+    // Date only, right-aligned
     sf(16)
     ctx.fillStyle = T.textSub
     ctx.textAlign = 'right'
-    ctx.fillText(new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric' }), R, y + 18)
+    ctx.fillText(new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric' }), R, y + 16)
     ctx.textAlign = 'left'
-    y += 42
 
+    // Name + title on same row
     const nameStr = profile.name || userMeta?.full_name || 'ユーザー'
     sf(32, 700)
     ctx.fillStyle = T.text
-    ctx.fillText(nameStr, L, y + 18)
+    ctx.fillText(nameStr, L, y + 16)
     if (titleLabel) {
       const nw = ctx.measureText(nameStr).width
       sf(20)
       ctx.fillStyle = T.accent
-      ctx.fillText(` ✨${titleLabel}`, L + nw, y + 18)
+      ctx.fillText(` ✨${titleLabel}`, L + nw, y + 16)
     }
-    y += 18 + 30  // name baseline + gap to cards
+    y += 36 + 42  // header height + gap to cards (+12px)
 
     // ── Status cards (height: 90px) ──
     const SY = y, SH = CARDS_H, CGAP = 16
@@ -223,19 +222,20 @@ export default function ProfileTab() {
     })
     const PX = 16, PY = 12  // card inner padding
 
-    // Card 1 — Level
+    // Card 1 — Level (number + XP inline, bar below)
     sf(12); ctx.fillStyle = T.textSub
     ctx.fillText('レベル', cardDefs[0].x + PX, SY + PY + 14)
-    sf(34, 700); ctx.fillStyle = T.accent
-    ctx.fillText(String(level), cardDefs[0].x + PX, SY + PY + 14 + 4 + 30)
-    const xpBarY = SY + PY + 14 + 4 + 30 + 6  // +6px below level number
-    const xbMax = Math.floor(cardDefs[0].w * 0.80)
+    sf(36, 700); ctx.fillStyle = T.accent
+    ctx.fillText(String(level), cardDefs[0].x + PX, SY + PY + 14 + 4 + 32)
+    const lvNumW = ctx.measureText(String(level)).width
+    sf(14); ctx.fillStyle = T.textSub
+    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + PX + lvNumW + 8, SY + PY + 14 + 4 + 32)
+    const xpBarY = SY + PY + 14 + 4 + 32 + 8
+    const xbMax = Math.floor(cardDefs[0].w * 0.70)
     ctx.fillStyle = T.border
-    roundRect(ctx, cardDefs[0].x + PX, xpBarY, xbMax, 6, 3); ctx.fill()  // bar 6px thick
+    roundRect(ctx, cardDefs[0].x + PX, xpBarY, xbMax, 6, 3); ctx.fill()
     ctx.fillStyle = T.accent
     roundRect(ctx, cardDefs[0].x + PX, xpBarY, Math.max(Math.round(xbMax * xpProgress / 100), 4), 6, 3); ctx.fill()
-    sf(11); ctx.fillStyle = T.textSub
-    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + PX, xpBarY + 6 + 4 + 10)  // +4px below bar
 
     // Card 2 — Rank (emoji + text vertically centered)
     sf(12); ctx.fillStyle = T.textSub
@@ -251,7 +251,7 @@ export default function ProfileTab() {
     sf(14); ctx.fillStyle = T.textSub
     ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + PX, SY + PY + 14 + 4 + 30 + 18)
 
-    y = SY + SH + 30  // gap cards→records (+10px)
+    y = SY + SH + 42  // gap cards→records (+12px)
 
     // ── Today's records section ──
     sf(16, 600); ctx.fillStyle = T.accent
@@ -264,22 +264,22 @@ export default function ProfileTab() {
       sf(16); ctx.fillStyle = T.textSub
       ctx.fillText('本日の学習記録がありません', L, y + 40)
     } else {
-      y += 30  // gap to total time (+8px)
+      y += 38  // gap to total time (+8px)
 
       const totalStr = fmt(totalSec)
-      sf(52, 600); ctx.fillStyle = T.accent  // 52px (down from 56)
-      ctx.fillText(totalStr, L, y + 44)
+      sf(44, 600); ctx.fillStyle = T.accent  // 44px (down from 52)
+      ctx.fillText(totalStr, L, y + 38)
       const totalW = ctx.measureText(totalStr).width
-      sf(20); ctx.fillStyle = T.textSub  // 20px goal text
-      ctx.fillText(` / ${fmt(goalSec)}`, L + totalW, y + 44)
-      y += 52
+      sf(18); ctx.fillStyle = T.textSub  // 18px goal text (down from 20)
+      ctx.fillText(` / ${fmt(goalSec)}`, L + totalW, y + 38)
+      y += 44
 
       // "合計" label
       sf(12); ctx.fillStyle = T.textSub
       ctx.fillText('合計', L, y + 12)
-      y += 24  // +8px gap
+      y += 24
 
-      y += 32  // gap to subject bars (+8px)
+      y += 40  // gap to subject bars (+8px)
 
       // Subject bars
       const BAR_MAX = Math.round(CW * 0.80)
@@ -291,7 +291,7 @@ export default function ProfileTab() {
         ctx.fillText(fmt(s.sec), R, y + 14)
         ctx.textAlign = 'left'
 
-        // Bar BG (+4px gap from name)
+        // Bar BG
         ctx.fillStyle = T.border
         roundRect(ctx, L, y + 24, BAR_MAX, 10, 5); ctx.fill()
         // Bar fill (min width: 30px)
@@ -299,7 +299,7 @@ export default function ProfileTab() {
         ctx.fillStyle = s.color
         roundRect(ctx, L, y + 24, Math.max(Math.round(BAR_MAX * ratio), 30), 10, 5); ctx.fill()
 
-        y += 46  // +4px row spacing
+        y += 52  // row spacing (+6px)
       })
 
       if (restSubj.length > 0) {

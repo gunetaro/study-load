@@ -389,7 +389,14 @@ export default function TimerTab() {
               {displayInitial}
             </div>
           )}
-          <span style={{ fontSize: 15, fontWeight: 700, color: theme.text, flex: 1 }}>Study Load</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>
+              {(() => { const h = new Date().getHours(); return progress >= 100 ? '🎉 目標達成！すごい！' : h >= 5 && h < 11 ? '☀️ おはよう！今日も頑張ろう' : h >= 11 && h < 17 ? '📚 勉強を始めよう！' : h >= 17 && h < 21 ? '🌙 もうひと頑張り！' : '✨ 夜の集中タイム' })()}
+            </div>
+            {todayMin === 0 && progress < 100 && (
+              <div style={{ fontSize: 12, color: theme.textSub }}>教科をタップしてスタート！</div>
+            )}
+          </div>
           <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSub }}>Lv.{level} {rank.emoji}</span>
         </div>
 

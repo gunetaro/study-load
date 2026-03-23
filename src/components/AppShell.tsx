@@ -14,8 +14,8 @@ type Tab = 'timer' | 'timeline' | 'materials' | 'stats' | 'profile'
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'timer', icon: '⏱', label: 'タイマー' },
   { id: 'timeline', icon: '📅', label: '記録' },
-  { id: 'materials', icon: '📚', label: '教材' },
   { id: 'stats', icon: '📊', label: '統計' },
+  { id: 'materials', icon: '📚', label: '教材' },
   { id: 'profile', icon: '👤', label: 'マイ' },
 ]
 

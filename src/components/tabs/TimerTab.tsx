@@ -4,14 +4,14 @@ import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
 import { SubjectIconDisplay } from '@/components/ui/SubjectIconPicker'
-import { fmtTime, fmtDuration, BADGES, XP_PER_MIN, Subject, Material } from '@/types'
+import { fmtTime, fmtDuration, BADGES, XP_PER_MIN, RANKS, getRank, XP_PER_LEVEL, Subject, Material, Session } from '@/types'
 
 type TimerMode = 'normal' | 'pomodoro'
 type TimerState = 'idle' | 'subject' | 'material' | 'running' | 'paused' | 'saving' | 'pomo_break'
 type DisplayMode = 'timer' | 'clock'
 
 export default function TimerTab() {
-  const { subjects, refreshSubjects, userId, theme, settings, showToast, refreshProfile, refreshBadges, badges } = useApp()
+  const { subjects, refreshSubjects, userId, userMeta, profile, goal, theme, settings, showToast, refreshProfile, refreshBadges, badges } = useApp()
   const supabase = createClient()
 
   const [mode, setMode] = useState<TimerMode>('normal')
@@ -37,6 +37,10 @@ export default function TimerTab() {
   const [pomoRound, setPomoRound] = useState(1)
   const [pomoRemaining, setPomoRemaining] = useState(pomoWork * 60)
   const [pomoElapsed, setPomoElapsed] = useState(0)
+
+  // Today's sessions for idle screen
+  const [todaySessions, setTodaySessions] = useState<Session[]>([])
+  const [weekData, setWeekData] = useState<number[]>([0,0,0,0,0,0,0])
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number>(0)
@@ -118,6 +122,23 @@ export default function TimerTab() {
     if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
     controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 4000)
   }
+
+  // Load today's sessions + week data for idle screen
+  useEffect(() => {
+    if (!userId) return
+    const today = new Date().toLocaleDateString('en-CA')
+    supabase.from('sessions').select('*').eq('user_id', userId).eq('date', today).then(({ data }) => setTodaySessions(data || []))
+    // Week data
+    const ws = new Date(); ws.setDate(ws.getDate() - ws.getDay()); ws.setHours(0,0,0,0)
+    const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(ws); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0] })
+    const weStart = dates[0]
+    const weEnd = dates[6]
+    supabase.from('sessions').select('date, duration').eq('user_id', userId).gte('date', weStart).lte('date', weEnd).then(({ data }) => {
+      const w = [0,0,0,0,0,0,0]
+      ;(data || []).forEach(s => { const idx = dates.indexOf(s.date); if (idx >= 0) w[idx] += s.duration })
+      setWeekData(w)
+    })
+  }, [userId, state]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Past tag suggestions
   useEffect(() => {
@@ -301,50 +322,133 @@ export default function TimerTab() {
 
   // --- Renders ---
   if (state === 'idle' || state === 'subject') {
+    const xp = profile?.xp || 0
+    const level = Math.floor(xp / 100) + 1
+    const rank = getRank(level)
+    const displayAvatar = profile?.avatar_url || userMeta?.avatar_url || ''
+    const displayInitial = (profile?.name || userMeta?.full_name || 'U')[0]
+
+    const todayTotalSec = todaySessions.reduce((sum, s) => sum + s.duration, 0)
+    const todayMin = Math.round(todayTotalSec / 60)
+    const goalMin = goal?.daily_minutes ?? 120
+    const remaining = Math.max(goalMin - todayMin, 0)
+    const progress = Math.min(todayMin / goalMin * 100, 100)
+
+    // Per-subject today minutes
+    const subjectTodayMin: Record<string, number> = {}
+    todaySessions.forEach(s => { subjectTodayMin[s.subject_id] = (subjectTodayMin[s.subject_id] || 0) + Math.round(s.duration / 60) })
+
+    const weekDays = ['日','月','火','水','木','金','土']
+    const todayDow = new Date().getDay()
+    const maxWeek = Math.max(...weekData, 1)
+
+    // Progress ring SVG
+    const ringSize = 56, ringStroke = 5, ringR = (ringSize - ringStroke) / 2
+    const ringCirc = 2 * Math.PI * ringR
+    const ringOffset = ringCirc - (progress / 100) * ringCirc
+
     return (
       <div>
-        {/* Mode Toggle */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+        {/* 1. Header */}
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12 }}>
+          {displayAvatar ? (
+            <img src={displayAvatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', marginRight: 8 }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          ) : (
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: theme.accent, marginRight: 8 }}>
+              {displayInitial}
+            </div>
+          )}
+          <span style={{ fontSize: 15, fontWeight: 700, color: theme.text, flex: 1 }}>Study Load</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSub }}>Lv.{level} {rank.emoji}</span>
+        </div>
+
+        {/* 2. Today's progress card */}
+        <div style={{ background: theme.card, borderRadius: 14, padding: '12px 14px', marginBottom: 12, border: `1px solid ${theme.border}`, display: 'flex', alignItems: 'center', gap: 14 }}>
+          {/* Ring */}
+          <div style={{ position: 'relative', width: ringSize, height: ringSize, flexShrink: 0 }}>
+            <svg width={ringSize} height={ringSize} style={{ transform: 'rotate(-90deg)' }}>
+              <circle cx={ringSize/2} cy={ringSize/2} r={ringR} fill="none" stroke={theme.border} strokeWidth={ringStroke} />
+              <circle cx={ringSize/2} cy={ringSize/2} r={ringR} fill="none" stroke={theme.accent} strokeWidth={ringStroke}
+                strokeDasharray={ringCirc} strokeDashoffset={ringOffset} strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.5s' }} />
+            </svg>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: theme.accent, lineHeight: 1 }}>{todayMin}</span>
+              <span style={{ fontSize: 9, color: theme.textSub }}>/ {goalMin}分</span>
+            </div>
+          </div>
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, marginBottom: 2 }}>今日の進捗</div>
+            <div style={{ fontSize: 11, color: theme.textSub, marginBottom: 6 }}>
+              {progress >= 100 ? '目標達成！' : `あと${remaining}分で目標達成！`}
+            </div>
+            <div style={{ height: 6, background: theme.border, borderRadius: 3 }}>
+              <div style={{ height: '100%', width: `${progress}%`, background: progress >= 100 ? theme.success : theme.accent, borderRadius: 3, transition: 'width 0.5s' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* 3. Mode toggle */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, justifyContent: 'center' }}>
           {(['normal','pomodoro'] as TimerMode[]).map(m => (
             <button key={m} onClick={() => setMode(m)} style={{
-              flex: 1, padding: '10px', borderRadius: 12,
-              border: `2px solid ${mode===m ? theme.accent : theme.border}`,
-              background: mode===m ? theme.accentLight : theme.card,
-              color: mode===m ? theme.accent : theme.textSub,
-              fontWeight: 700, fontSize: 13, cursor: 'pointer',
+              padding: '7px 20px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              border: `1.5px solid ${mode===m ? theme.accent : theme.border}`,
+              background: mode===m ? theme.accent : theme.card,
+              color: mode===m ? '#fff' : theme.textSub,
             }}>
-              {m === 'normal' ? '⏱ 通常' : '⏰ ポモドーロ'}
+              {m === 'normal' ? '通常' : '⚡ ポモドーロ'}
             </button>
           ))}
         </div>
 
         {mode === 'pomodoro' && (
-          <div style={{ background: theme.card, borderRadius: 16, padding: '12px 16px', marginBottom: 16, border: `1px solid ${theme.border}` }}>
-            <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 4 }}>ポモドーロ設定</div>
-            <div style={{ display: 'flex', gap: 12, fontSize: 13, color: theme.text }}>
-              <span>作業 {pomoWork}分</span>
-              <span>休憩 {pomoShort}分</span>
-              <span>{pomoRounds}ラウンド</span>
-            </div>
+          <div style={{ background: theme.card, borderRadius: 12, padding: '8px 14px', marginBottom: 10, border: `1px solid ${theme.border}`, display: 'flex', gap: 10, fontSize: 11, color: theme.textSub, justifyContent: 'center' }}>
+            <span>作業{pomoWork}分</span><span>休憩{pomoShort}分</span><span>{pomoRounds}ラウンド</span>
           </div>
         )}
 
-        <div style={{ fontSize: 13, fontWeight: 600, color: theme.textSub, marginBottom: 10 }}>教科を選択</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {/* 4. Subject grid */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSub, marginBottom: 8 }}>教科を選んでスタート</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 12 }}>
           {subjects.map(s => (
             <button key={s.id} onClick={() => handleSelectSubject(s)} style={{
-              background: theme.card, border: `2px solid ${s.color}30`,
-              borderRadius: 16, padding: '16px 8px', cursor: 'pointer',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+              background: theme.card, border: `2px solid ${s.color}26`,
+              borderRadius: 14, padding: '12px 6px', cursor: 'pointer',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
               transition: 'border-color 0.15s, background 0.15s',
             }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.background = `${s.color}14` }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = `${s.color}30`; e.currentTarget.style.background = theme.card }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = `${s.color}26`; e.currentTarget.style.background = theme.card }}
             >
-              <SubjectIconDisplay icon={s.icon} size={32} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>{s.name}</span>
+              <SubjectIconDisplay icon={s.icon} size={28} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: theme.text }}>{s.name}</span>
+              {(subjectTodayMin[s.id] || 0) > 0 && (
+                <span style={{ fontSize: 10, color: theme.textSub }}>{subjectTodayMin[s.id]}分</span>
+              )}
             </button>
           ))}
+        </div>
+
+        {/* 5. Weekly mini chart */}
+        <div style={{ background: theme.card, borderRadius: 14, padding: '10px 14px', border: `1px solid ${theme.border}` }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: theme.text, marginBottom: 8 }}>今週</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 48 }}>
+            {weekData.map((sec, i) => (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{
+                  width: '100%',
+                  height: sec > 0 ? Math.max(sec / maxWeek * 36, 4) : 2,
+                  background: i === todayDow ? theme.accent : sec > 0 ? theme.accent + '44' : theme.border,
+                  borderRadius: '3px 3px 0 0',
+                  transition: 'height 0.5s ease',
+                  opacity: sec > 0 ? 1 : 0.3,
+                }} />
+                <div style={{ fontSize: 9, color: i === todayDow ? theme.accent : theme.textSub, fontWeight: i === todayDow ? 700 : 400, marginTop: 2 }}>{weekDays[i]}</div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )

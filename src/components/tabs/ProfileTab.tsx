@@ -7,14 +7,14 @@ import { BADGES, TITLES, THEMES, Theme, RANKS, getRank, XP_PER_LEVEL } from '@/t
 import { useRouter } from 'next/navigation'
 
 export default function ProfileTab() {
-  const { userId, userMeta, profile, badges, subjects, goal, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, showToast } = useApp()
+  const { userId, userMeta, profile, badges, subjects, goal, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, refreshGoal, showToast } = useApp()
   const supabase = createClient()
   const router = useRouter()
 
-  const [themeModal, setThemeModal] = useState(false)
+  const [settingsModal, setSettingsModal] = useState(false)
   const [badgeModal, setBadgeModal] = useState(false)
   const [titleModal, setTitleModal] = useState(false)
-  const [pomoModal, setPomoModal] = useState(false)
+  const [goalModal, setGoalModal] = useState(false)
   const [shareImgUrl, setShareImgUrl] = useState<string | null>(null)
   const [editModal, setEditModal] = useState(false)
   const [editName, setEditName] = useState('')
@@ -23,9 +23,15 @@ export default function ProfileTab() {
   const [saving, setSaving] = useState(false)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const headerInputRef = useRef<HTMLInputElement>(null)
+
+  // Goal editing
+  const [goalDaily, setGoalDaily] = useState(goal?.daily_minutes ?? 120)
+  const [goalWeekly, setGoalWeekly] = useState(goal?.weekly_minutes ?? 600)
 
   const displayName = profile?.name || userMeta?.full_name || 'ユーザー'
   const displayAvatar = profile?.avatar_url || userMeta?.avatar_url || ''
+  const displayHeader = profile?.header_url || ''
 
   const xp = profile?.xp || 0
   const level = Math.floor(xp / 100) + 1
@@ -56,6 +62,25 @@ export default function ProfileTab() {
     reader.readAsDataURL(file)
   }
 
+  const handleHeaderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !userId) return
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+    const path = `${userId}.${ext}`
+    const { error } = await supabase.storage
+      .from('headers')
+      .upload(path, file, { upsert: true, contentType: file.type || `image/${ext}` })
+    if (error) {
+      showToast('ヘッダー画像のアップロードに失敗しました')
+      return
+    }
+    const { data: urlData } = supabase.storage.from('headers').getPublicUrl(path)
+    const headerUrl = `${urlData.publicUrl}?t=${Date.now()}`
+    await supabase.from('profiles').update({ header_url: headerUrl }).eq('id', userId)
+    await refreshProfile()
+    showToast('ヘッダー画像を更新しました')
+  }
+
   const handleEditSave = async () => {
     if (!userId) return
     setSaving(true)
@@ -68,7 +93,6 @@ export default function ProfileTab() {
         .from('avatars')
         .upload(path, editAvatarFile, { upsert: true, contentType: editAvatarFile.type || `image/${ext}` })
       if (uploadError) {
-        console.error('[avatar] upload error:', uploadError.message)
         showToast('画像のアップロードに失敗しました')
         setSaving(false)
         return
@@ -97,6 +121,17 @@ export default function ProfileTab() {
     await refreshProfile()
     showToast('称号を変更しました')
     setTitleModal(false)
+  }
+
+  const handleGoalSave = async () => {
+    if (!goal) return
+    await supabase.from('goals').update({
+      daily_minutes: goalDaily,
+      weekly_minutes: goalWeekly,
+    }).eq('id', goal.id)
+    await refreshGoal()
+    setGoalModal(false)
+    showToast('目標を更新しました')
   }
 
   function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -160,24 +195,21 @@ export default function ProfileTab() {
     if (!ctx) return
 
     const T = THEMES[themeName]
-    const L = 74, R = 1126, CW = R - L  // +10px each side (was 64/1136)
+    const L = 74, R = 1126, CW = R - L
     const FF = '"Helvetica Neue", Arial, sans-serif'
     const sf = (size: number, w: 400 | 600 | 700 = 400) => {
       ctx.font = `${w === 400 ? 'normal' : w} ${size}px ${FF}`
     }
 
-    // ── Fixed-position layout (top-aligned, no centering) ──
     const CARDS_H = 90
 
-    // ── Background + accent bar ──
     ctx.fillStyle = T.bg
     ctx.fillRect(0, 0, 1200, 630)
     ctx.fillStyle = T.accent
     ctx.fillRect(0, 0, 1200, 4)
 
-    let y = 56  // fixed header start
+    let y = 56
 
-    // ── Header ──
     sf(16)
     ctx.fillStyle = T.textSub
     ctx.textAlign = 'right'
@@ -194,9 +226,8 @@ export default function ProfileTab() {
       ctx.fillStyle = T.accent
       ctx.fillText(` ✨${titleLabel}`, L + nw, y + 16)
     }
-    y += 36 + 16  // name height + gap to cards (16px)
+    y += 36 + 16
 
-    // ── Status cards (height: 90px) ──
     const SY = y, SH = CARDS_H, CGAP = 16
     const cw = Math.floor((CW - CGAP * 2) / 3)
     const cardDefs = [
@@ -210,9 +241,8 @@ export default function ProfileTab() {
       ctx.strokeStyle = T.border; ctx.lineWidth = 1
       roundRect(ctx, x, SY, w, SH, 12); ctx.stroke()
     })
-    const PX = 16, PY = 12  // card inner padding
+    const PX = 16, PY = 12
 
-    // Card 1 — Level (number + XP on same line, bar below)
     sf(12); ctx.fillStyle = T.textSub
     ctx.fillText('レベル', cardDefs[0].x + PX, SY + PY + 14)
     const lvBaseY = SY + PY + 14 + 4 + 32
@@ -228,13 +258,11 @@ export default function ProfileTab() {
     ctx.fillStyle = T.accent
     roundRect(ctx, cardDefs[0].x + PX, xpBarY, Math.max(Math.round(xbMax * xpProgress / 100), 4), 6, 3); ctx.fill()
 
-    // Card 2 — Rank (emoji + text vertically centered)
     sf(12); ctx.fillStyle = T.textSub
     ctx.fillText('ランク', cardDefs[1].x + PX, SY + PY + 14)
     sf(22, 700); ctx.fillStyle = T.text
     ctx.fillText(`${currentRank.emoji} ${currentRank.name}`, cardDefs[1].x + PX, SY + PY + 14 + 4 + 22)
 
-    // Card 3 — Badge ("/ N個" below the number)
     sf(12); ctx.fillStyle = T.textSub
     ctx.fillText('バッジ', cardDefs[2].x + PX, SY + PY + 14)
     sf(34, 700); ctx.fillStyle = T.accent
@@ -242,10 +270,9 @@ export default function ProfileTab() {
     sf(14); ctx.fillStyle = T.textSub
     ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + PX, SY + PY + 14 + 4 + 30 + 18)
 
-    y = SY + SH + 8  // gap cards→records (8px, was 16) ⑨
+    y = SY + SH + 8
 
-    // ── Today's records section ──
-    sf(20, 700); ctx.fillStyle = T.accent  // ④ 20px bold
+    sf(20, 700); ctx.fillStyle = T.accent
     ctx.fillText('今日の記録', L, y + 18)
     ctx.fillStyle = T.border
     ctx.fillRect(L, y + 24, CW, 1)
@@ -255,11 +282,11 @@ export default function ProfileTab() {
       sf(16); ctx.fillStyle = T.textSub
       ctx.fillText('本日の学習記録がありません', L, y + 40)
     } else {
-      y += 8  // ④ heading→total 8px fixed
+      y += 8
 
       const totalStr = fmt(totalSec)
-      sf(44, 600)  // ③ semibold
-      ctx.globalAlpha = 0.75; ctx.fillStyle = T.accent  // ③ 0.75 opacity
+      sf(44, 600)
+      ctx.globalAlpha = 0.75; ctx.fillStyle = T.accent
       ctx.fillText(totalStr, L, y + 38)
       ctx.globalAlpha = 1.0
       const totalW = ctx.measureText(totalStr).width
@@ -267,52 +294,48 @@ export default function ProfileTab() {
       ctx.fillText(` / ${fmt(goalSec)}`, L + totalW, y + 38)
       y += 44
 
-      // "合計" label
       sf(12); ctx.fillStyle = T.textSub
       ctx.fillText('合計', L, y + 12)
-      y += 24 + 6  // ⑤ label + gap to subjects (was 12, now 6)
+      y += 24 + 6
 
-      // Subject bars — indented, proportional to totalSec
-      const INDENT = 16  // ① 80% of 20 = 16
+      const INDENT = 16
       const SL = L + INDENT
-      const timeX = R - 10  // ⑦ time right edge, 10px from bar area right
-      const BAR_RIGHT = R - 16  // ② 16px from image right edge
-      const BAR_MAX = BAR_RIGHT - SL  // ② full width minus indent+margin
-      const ROW_H = 46  // ⑥ fixed row height
+      const timeX = R - 10
+      const BAR_RIGHT = R - 16
+      const BAR_MAX = BAR_RIGHT - SL
+      const ROW_H = 46
 
       topSubj.forEach((s, i) => {
         const isTop = i < 2
-        const barH = isTop ? 10 : 8  // ⑧ lower: 8px
+        const barH = isTop ? 10 : 8
 
-        // Text: top 2 = 14px semibold, 3+ = 13px dimmed
         if (isTop) {
           sf(14, 600); ctx.fillStyle = T.text
         } else {
-          ctx.globalAlpha = 0.45; sf(13); ctx.fillStyle = T.textSub  // ⑧ 0.45 opacity
+          ctx.globalAlpha = 0.45; sf(13); ctx.fillStyle = T.textSub
         }
-        ctx.fillText(s.name, SL, y + 14)  // ⑥ all names at same SL
+        ctx.fillText(s.name, SL, y + 14)
         ctx.textAlign = 'right'
         if (isTop) {
           sf(14, 600); ctx.fillStyle = T.text
         } else {
           sf(13); ctx.fillStyle = T.textSub
         }
-        ctx.fillText(fmt(s.sec), timeX, y + 14)  // ⑦ all times at same timeX
+        ctx.fillText(fmt(s.sec), timeX, y + 14)
         ctx.textAlign = 'left'
         if (!isTop) ctx.globalAlpha = 1.0
 
-        // Bar — 4px below text ⑥
-        const barY = y + 18
+        const barY2 = y + 18
         ctx.fillStyle = T.border
-        roundRect(ctx, SL, barY, BAR_MAX, barH, barH / 2); ctx.fill()  // ⑥ all bars at SL
+        roundRect(ctx, SL, barY2, BAR_MAX, barH, barH / 2); ctx.fill()
         const ratio = s.sec / totalSec
         const barW = Math.max(Math.round(BAR_MAX * ratio), 20)
-        ctx.globalAlpha = isTop ? 0.9 : 0.2  // ⑧ lower: 0.2
+        ctx.globalAlpha = isTop ? 0.9 : 0.2
         ctx.fillStyle = s.color
-        roundRect(ctx, SL, barY, barW, barH, barH / 2); ctx.fill()
+        roundRect(ctx, SL, barY2, barW, barH, barH / 2); ctx.fill()
         ctx.globalAlpha = 1.0
 
-        y += ROW_H  // ⑥ fixed 46px per row
+        y += ROW_H
       })
 
       if (restSubj.length > 0) {
@@ -323,7 +346,6 @@ export default function ProfileTab() {
       }
     }
 
-    // ── Footer: "#StudyLoad" fixed 24px from bottom, min 16px below content ⑩ ──
     const footerY = Math.max(y + 16, 630 - 24)
     sf(16, 600); ctx.fillStyle = T.accent
     ctx.textAlign = 'center'
@@ -355,81 +377,118 @@ export default function ProfileTab() {
 
   return (
     <div>
-      {/* Hidden canvas for image generation */}
       <canvas ref={canvasRef} style={{ display: 'none' }} />
+      <input ref={headerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleHeaderChange} />
 
-      {/* Profile card */}
-      <div style={{ background: theme.card, borderRadius: 20, padding: '20px', marginBottom: 16, border: `1px solid ${theme.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            <img
-              src={displayAvatar}
-              alt=""
-              style={{ width: 60, height: 60, borderRadius: '50%', border: `3px solid ${theme.accent}`, display: displayAvatar ? 'block' : 'none' }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-            />
-            {!displayAvatar && (
-              <div style={{ width: 60, height: 60, borderRadius: '50%', border: `3px solid ${theme.accent}`, background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>
-                👤
-              </div>
-            )}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: theme.text }}>{displayName}</div>
-            {profile?.selected_title && (
-              <div style={{ fontSize: 12, color: theme.accent, fontWeight: 600, marginTop: 2 }}>
-                ✨ {TITLES.find(t => t.key === profile.selected_title)?.label}
-              </div>
-            )}
-          </div>
-          <button onClick={handleEditOpen} style={{
-            marginLeft: 'auto', background: theme.cardAlt, border: `1px solid ${theme.border}`,
-            borderRadius: 10, padding: '6px 12px', fontSize: 12, fontWeight: 600,
-            cursor: 'pointer', color: theme.textSub, flexShrink: 0,
-          }}>
-            ✏️ 編集
-          </button>
+      {/* Header banner + Avatar overlay */}
+      <div style={{ position: 'relative', marginBottom: 40 }}>
+        {/* Header image */}
+        <div
+          onClick={() => headerInputRef.current?.click()}
+          style={{
+            width: '100%', height: 120, borderRadius: '20px 20px 0 0', cursor: 'pointer', overflow: 'hidden',
+            background: displayHeader ? undefined : `linear-gradient(135deg, ${theme.accent}40, ${theme.accent}15)`,
+          }}
+        >
+          {displayHeader && (
+            <img src={displayHeader} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          )}
         </div>
 
-        {/* Level & Rank */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, background: theme.accentLight, borderRadius: 12, padding: '10px 14px' }}>
-            <div style={{ fontSize: 10, color: theme.textSub }}>レベル</div>
-            <div style={{ fontSize: 28, fontWeight: 900, color: theme.accent }}>{level}</div>
-          </div>
-          <div style={{ flex: 1, background: theme.cardAlt, borderRadius: 12, padding: '10px 14px' }}>
-            <div style={{ fontSize: 10, color: theme.textSub }}>ランク</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: theme.text }}>{currentRank.emoji} {currentRank.name}</div>
-          </div>
+        {/* Avatar overlapping header */}
+        <div style={{ position: 'absolute', bottom: -30, left: 20 }}>
+          {displayAvatar ? (
+            <img src={displayAvatar} alt=""
+              style={{ width: 64, height: 64, borderRadius: '50%', border: `3px solid ${theme.bg}`, objectFit: 'cover' }}
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+          ) : (
+            <div style={{ width: 64, height: 64, borderRadius: '50%', border: `3px solid ${theme.bg}`, background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
+              👤
+            </div>
+          )}
         </div>
 
-        {/* XP bar */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-            <span style={{ fontSize: 12, color: theme.textSub }}>XP: {xp} (Lv.{level})</span>
-            <span style={{ fontSize: 12, color: theme.textSub }}>
-              {nextRank ? `→ ${nextRank.name} Lv.${nextRank.minLevel}` : '最高ランク'}
-            </span>
+        {/* Edit button */}
+        <button onClick={handleEditOpen} style={{
+          position: 'absolute', bottom: -24, right: 12,
+          background: theme.cardAlt, border: `1px solid ${theme.border}`,
+          borderRadius: 10, padding: '5px 10px', fontSize: 11, fontWeight: 600,
+          cursor: 'pointer', color: theme.textSub,
+        }}>
+          ✏️ 編集
+        </button>
+      </div>
+
+      {/* Name + Title */}
+      <div style={{ padding: '0 4px', marginBottom: 12 }}>
+        <div style={{ fontSize: 18, fontWeight: 800, color: theme.text }}>{displayName}</div>
+        {profile?.selected_title && (
+          <div style={{ fontSize: 12, color: theme.accent, fontWeight: 600, marginTop: 2 }}>
+            ✨ {TITLES.find(t => t.key === profile.selected_title)?.label}
           </div>
-          <div style={{ height: 8, background: theme.border, borderRadius: 4 }}>
-            <div style={{ height: '100%', width: `${xpProgress}%`, background: theme.accent, borderRadius: 4, transition: 'width 0.5s' }} />
-          </div>
+        )}
+      </div>
+
+      {/* Rank + XP bar */}
+      <div style={{ background: theme.card, borderRadius: 16, padding: '12px 14px', marginBottom: 10, border: `1px solid ${theme.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 20 }}>{currentRank.emoji}</span>
+          <span style={{ fontWeight: 800, fontSize: 15, color: theme.text }}>{currentRank.name}</span>
+          <span style={{ fontSize: 12, color: theme.textSub, marginLeft: 'auto' }}>Lv.{level}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: 11, color: theme.textSub }}>XP: {xp}</span>
+          <span style={{ fontSize: 11, color: theme.textSub }}>
+            {nextRank ? `→ ${nextRank.name} Lv.${nextRank.minLevel}` : '最高ランク'}
+          </span>
+        </div>
+        <div style={{ height: 6, background: theme.border, borderRadius: 3 }}>
+          <div style={{ height: '100%', width: `${xpProgress}%`, background: theme.accent, borderRadius: 3, transition: 'width 0.5s' }} />
         </div>
       </div>
 
-      {/* Action buttons */}
+      {/* Badges inline */}
+      <div
+        onClick={() => setBadgeModal(true)}
+        style={{ background: theme.card, borderRadius: 16, padding: '10px 14px', marginBottom: 10, border: `1px solid ${theme.border}`, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: theme.text }}>🏅 バッジ</span>
+          <span style={{ fontSize: 12, color: theme.textSub }}>{badges.length}/{BADGES.length}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {BADGES.slice(0, 10).map(b => (
+            <span key={b.key} style={{ fontSize: 18, opacity: hasBadge(b.key) ? 1 : 0.2 }}>{b.emoji}</span>
+          ))}
+          {BADGES.length > 10 && <span style={{ fontSize: 12, color: theme.textSub, alignSelf: 'center' }}>…</span>}
+        </div>
+      </div>
+
+      {/* Title select inline */}
+      <div
+        onClick={() => setTitleModal(true)}
+        style={{ background: theme.card, borderRadius: 16, padding: '10px 14px', marginBottom: 12, border: `1px solid ${theme.border}`, cursor: 'pointer' }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: theme.text }}>✨ 称号</span>
+          <span style={{ fontSize: 12, color: theme.accent, fontWeight: 600 }}>
+            {profile?.selected_title ? TITLES.find(t => t.key === profile.selected_title)?.label : '未選択'}
+          </span>
+        </div>
+      </div>
+
+      {/* Menu grid — 4 buttons */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
         {[
-          { label: '🏅 バッジ', onClick: () => setBadgeModal(true) },
-          { label: '✨ 称号', onClick: () => setTitleModal(true) },
-          { label: '🎨 テーマ', onClick: () => setThemeModal(true) },
-          { label: '⚡ ポモドーロ', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setPomoModal(true) } },
-          { label: '📊 シェア画像', onClick: generateShareImage },
+          { label: '🎯 目標設定', onClick: () => { setGoalDaily(goal?.daily_minutes ?? 120); setGoalWeekly(goal?.weekly_minutes ?? 600); setGoalModal(true) } },
+          { label: '📤 シェア画像', onClick: generateShareImage },
+          { label: '⚙️ 設定', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setSettingsModal(true) } },
           { label: '🚪 ログアウト', onClick: handleLogout },
         ].map(btn => (
           <button key={btn.label} onClick={btn.onClick} style={{
             background: theme.card, border: `1px solid ${theme.border}`,
-            borderRadius: 14, padding: '14px', fontSize: 13, fontWeight: 600,
+            borderRadius: 14, padding: '12px', fontSize: 13, fontWeight: 600,
             cursor: 'pointer', color: theme.text,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
@@ -438,32 +497,90 @@ export default function ProfileTab() {
         ))}
       </div>
 
-      {/* Theme Modal */}
-      <Modal open={themeModal} onClose={() => setThemeModal(false)} title="テーマ設定">
+      {/* ── Settings Modal (theme + pomodoro) ── */}
+      <Modal open={settingsModal} onClose={() => setSettingsModal(false)} title="設定">
         <div>
-          {(['minimal','pop','midnight','pastel'] as Theme[]).map(t => (
-            <button key={t} onClick={() => { setThemeName(t); setThemeModal(false) }} style={{
-              width: '100%', marginBottom: 8, padding: '14px 16px',
-              borderRadius: 12, border: `2px solid ${themeName===t ? theme.accent : theme.border}`,
-              background: THEMES[t].card, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: THEMES[t].accent, flexShrink: 0 }} />
-              <div style={{ textAlign: 'left' }}>
-                <div style={{ fontWeight: 700, color: THEMES[t].text }}>
+          {/* Theme */}
+          <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, marginBottom: 8 }}>テーマ</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+            {(['minimal','pop','midnight','pastel'] as Theme[]).map(t => (
+              <button key={t} onClick={() => setThemeName(t)} style={{
+                flex: 1, padding: '10px 4px', borderRadius: 12,
+                border: `2px solid ${themeName===t ? theme.accent : theme.border}`,
+                background: THEMES[t].card, cursor: 'pointer', textAlign: 'center',
+              }}>
+                <div style={{ width: 24, height: 24, borderRadius: '50%', background: THEMES[t].accent, margin: '0 auto 4px' }} />
+                <div style={{ fontSize: 10, fontWeight: 600, color: THEMES[t].text }}>
                   {t === 'minimal' ? 'シンプル' : t === 'pop' ? 'ポップ' : t === 'midnight' ? 'ミッドナイト' : 'パステル'}
                 </div>
-                <div style={{ fontSize: 12, color: THEMES[t].textSub }}>
-                  {t === 'minimal' ? 'クリーンな白ベース' : t === 'pop' ? 'やわらかピンク系' : t === 'midnight' ? 'ダークモード' : 'やさしいパステル'}
-                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Pomodoro */}
+          <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, marginBottom: 8 }}>ポモドーロ</div>
+          {([
+            { label: '作業（分）', key: 'work', min: 1, max: 90 },
+            { label: '短い休憩', key: 'short', min: 1, max: 30 },
+            { label: '長い休憩', key: 'long', min: 5, max: 60 },
+            { label: 'ラウンド', key: 'rounds', min: 1, max: 10 },
+          ] as { label: string; key: keyof typeof pomoEdit; min: number; max: number }[]).map(({ label, key, min, max }) => (
+            <div key={key} style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontSize: 12, color: theme.textSub }}>{label}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: theme.accent }}>{pomoEdit[key]}</span>
               </div>
-              {themeName===t && <span style={{ marginLeft: 'auto', color: theme.accent, fontSize: 18 }}>✓</span>}
-            </button>
+              <input
+                type="range" min={min} max={max} value={pomoEdit[key]}
+                onChange={e => setPomoEdit(p => ({ ...p, [key]: parseInt(e.target.value) }))}
+                style={{ width: '100%', accentColor: theme.accent }}
+              />
+            </div>
           ))}
+          <button onClick={async () => {
+            await saveSettings({ pomo_settings: pomoEdit } as any)
+            setSettingsModal(false)
+            showToast('設定を保存しました')
+          }} style={{
+            width: '100%', background: theme.accent, color: '#fff',
+            border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: 'pointer', fontSize: 15,
+          }}>
+            保存
+          </button>
         </div>
       </Modal>
 
-      {/* Badge Modal */}
+      {/* ── Goal Modal ── */}
+      <Modal open={goalModal} onClose={() => setGoalModal(false)} title="目標設定">
+        <div>
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 13, color: theme.textSub }}>1日の目標（分）</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: theme.accent }}>{goalDaily}分</span>
+            </div>
+            <input type="range" min={10} max={480} step={10} value={goalDaily}
+              onChange={e => setGoalDaily(parseInt(e.target.value))}
+              style={{ width: '100%', accentColor: theme.accent }} />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: 13, color: theme.textSub }}>1週間の目標（分）</span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: theme.accent }}>{goalWeekly}分</span>
+            </div>
+            <input type="range" min={60} max={3000} step={30} value={goalWeekly}
+              onChange={e => setGoalWeekly(parseInt(e.target.value))}
+              style={{ width: '100%', accentColor: theme.accent }} />
+          </div>
+          <button onClick={handleGoalSave} style={{
+            width: '100%', background: theme.accent, color: '#fff',
+            border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: 'pointer', fontSize: 15,
+          }}>
+            保存
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── Badge Modal ── */}
       <Modal open={badgeModal} onClose={() => setBadgeModal(false)} title={`バッジ (${badges.length}/${BADGES.length})`}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
           {BADGES.map(badge => {
@@ -485,7 +602,7 @@ export default function ProfileTab() {
         </div>
       </Modal>
 
-      {/* Title Modal */}
+      {/* ── Title Modal ── */}
       <Modal open={titleModal} onClose={() => setTitleModal(false)} title="称号を選択">
         <div>
           {unlockedTitles.map(t => (
@@ -514,47 +631,9 @@ export default function ProfileTab() {
         </div>
       </Modal>
 
-      {/* Pomodoro settings Modal */}
-      <Modal open={pomoModal} onClose={() => setPomoModal(false)} title="ポモドーロ設定">
-        <div>
-          {([
-            { label: '作業時間（分）', key: 'work', min: 1, max: 90 },
-            { label: '短い休憩（分）', key: 'short', min: 1, max: 30 },
-            { label: '長い休憩（分）', key: 'long', min: 5, max: 60 },
-            { label: 'ラウンド数', key: 'rounds', min: 1, max: 10 },
-          ] as { label: string; key: keyof typeof pomoEdit; min: number; max: number }[]).map(({ label, key, min, max }) => (
-            <div key={key} style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ fontSize: 13, color: theme.textSub }}>{label}</label>
-                <span style={{ fontSize: 14, fontWeight: 700, color: theme.accent }}>{pomoEdit[key]}</span>
-              </div>
-              <input
-                type="range"
-                min={min}
-                max={max}
-                value={pomoEdit[key]}
-                onChange={e => setPomoEdit(p => ({ ...p, [key]: parseInt(e.target.value) }))}
-                style={{ width: '100%', accentColor: theme.accent }}
-              />
-            </div>
-          ))}
-          <button onClick={async () => {
-            await saveSettings({ pomo_settings: pomoEdit } as any)
-            setPomoModal(false)
-            showToast('設定を保存しました')
-          }} style={{
-            width: '100%', background: theme.accent, color: '#fff',
-            border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: 'pointer', fontSize: 15,
-          }}>
-            保存
-          </button>
-        </div>
-      </Modal>
-
-      {/* Edit Profile Modal */}
+      {/* ── Edit Profile Modal ── */}
       <Modal open={editModal} onClose={() => setEditModal(false)} title="プロフィール編集">
         <div>
-          {/* Avatar */}
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -582,48 +661,33 @@ export default function ProfileTab() {
               </div>
             </div>
             <div style={{ fontSize: 11, color: theme.textSub, marginTop: 6 }}>タップして変更</div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={handleAvatarChange}
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
           </div>
 
-          {/* Name */}
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>表示名</label>
             <input
-              type="text"
-              value={editName}
-              onChange={e => setEditName(e.target.value)}
-              placeholder={userMeta?.full_name || 'ユーザー'}
-              maxLength={50}
+              type="text" value={editName} onChange={e => setEditName(e.target.value)}
+              placeholder={userMeta?.full_name || 'ユーザー'} maxLength={50}
               style={{
                 width: '100%', padding: '12px 14px', borderRadius: 12,
                 border: `1px solid ${theme.border}`, background: theme.cardAlt,
-                color: theme.text, fontSize: 15, boxSizing: 'border-box',
-                outline: 'none',
+                color: theme.text, fontSize: 15, boxSizing: 'border-box', outline: 'none',
               }}
             />
           </div>
 
-          <button
-            onClick={handleEditSave}
-            disabled={saving}
-            style={{
-              width: '100%', background: theme.accent, color: '#fff',
-              border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700,
-              cursor: saving ? 'default' : 'pointer', fontSize: 15, opacity: saving ? 0.7 : 1,
-            }}
-          >
+          <button onClick={handleEditSave} disabled={saving} style={{
+            width: '100%', background: theme.accent, color: '#fff',
+            border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700,
+            cursor: saving ? 'default' : 'pointer', fontSize: 15, opacity: saving ? 0.7 : 1,
+          }}>
             {saving ? '保存中...' : '保存'}
           </button>
         </div>
       </Modal>
 
-      {/* Share image Modal */}
+      {/* ── Share image Modal ── */}
       <Modal open={!!shareImgUrl} onClose={() => setShareImgUrl(null)} title="シェア画像">
         <div>
           {shareImgUrl && (

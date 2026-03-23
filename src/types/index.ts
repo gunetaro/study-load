@@ -68,6 +68,7 @@ export interface Profile {
   id: string
   name: string | null
   avatar_url: string | null
+  header_url: string | null
   selected_title: string | null
   xp: number
   created_at: string

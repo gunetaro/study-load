@@ -166,141 +166,152 @@ export default function ProfileTab() {
       ctx.font = `${w === 400 ? 'normal' : w} ${size}px ${FF}`
     }
 
+    // ── Pre-calculate content height for vertical centering ──
+    const CARDS_H = 90
+    let contentH = 60 + 30 + CARDS_H + 30 + 30 // header + gap + cards + gap + records label
+    if (totalSec === 0) {
+      contentH += 60
+    } else {
+      contentH += 30 + 52 + 24 + 32 + topSubj.length * 46 + (restSubj.length > 0 ? 24 : 0)
+    }
+    const startY = Math.max(40, Math.floor((630 - contentH) / 2))
+
     // ── Background + accent bar ──
     ctx.fillStyle = T.bg
     ctx.fillRect(0, 0, 1200, 630)
     ctx.fillStyle = T.accent
     ctx.fillRect(0, 0, 1200, 4)
 
+    let y = startY
+
     // ── Header ──
-    // Row 1: "Study Load" (left) + date (right)  — baseline y=58
     sf(20)
     ctx.fillStyle = T.textSub
-    ctx.fillText('Study Load', L, 58)
-
+    ctx.fillText('Study Load', L, y + 18)
     sf(16)
     ctx.fillStyle = T.textSub
     ctx.textAlign = 'right'
-    ctx.fillText(new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric' }), R, 58)
+    ctx.fillText(new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric' }), R, y + 18)
     ctx.textAlign = 'left'
+    y += 42
 
-    // Row 2: name (bold 32px) + title (20px accent) — baseline y=100
     const nameStr = profile.name || userMeta?.full_name || 'ユーザー'
     sf(32, 700)
     ctx.fillStyle = T.text
-    ctx.fillText(nameStr, L, 100)
+    ctx.fillText(nameStr, L, y + 18)
     if (titleLabel) {
       const nw = ctx.measureText(nameStr).width
       sf(20)
       ctx.fillStyle = T.accent
-      ctx.fillText(` ✨${titleLabel}`, L + nw, 100)
+      ctx.fillText(` ✨${titleLabel}`, L + nw, y + 18)
     }
+    y += 18 + 30  // name baseline + gap to cards
 
-    // ── Status cards (y: 120–200) ──
-    const SY = 120, SH = 80, CGAP = 16
+    // ── Status cards (height: 90px) ──
+    const SY = y, SH = CARDS_H, CGAP = 16
     const cw = Math.floor((CW - CGAP * 2) / 3)
     const cardDefs = [
       { x: L,                     w: cw },
       { x: L + cw + CGAP,         w: cw },
       { x: L + 2 * (cw + CGAP),   w: R - (L + 2 * (cw + CGAP)) },
     ]
-
     cardDefs.forEach(({ x, w }) => {
       ctx.fillStyle = T.card
       roundRect(ctx, x, SY, w, SH, 12); ctx.fill()
       ctx.strokeStyle = T.border; ctx.lineWidth = 1
       roundRect(ctx, x, SY, w, SH, 12); ctx.stroke()
     })
-
-    const P = 14  // card inner padding
+    const PX = 16, PY = 12  // card inner padding
 
     // Card 1 — Level
     sf(12); ctx.fillStyle = T.textSub
-    ctx.fillText('レベル', cardDefs[0].x + P, SY + 26)
+    ctx.fillText('レベル', cardDefs[0].x + PX, SY + PY + 14)
     sf(34, 700); ctx.fillStyle = T.accent
-    ctx.fillText(String(level), cardDefs[0].x + P, SY + 62)
+    ctx.fillText(String(level), cardDefs[0].x + PX, SY + PY + 14 + 4 + 30)
+    const xpBarY = SY + PY + 14 + 4 + 30 + 6  // +6px below level number
     const xbMax = Math.floor(cardDefs[0].w * 0.80)
     ctx.fillStyle = T.border
-    roundRect(ctx, cardDefs[0].x + P, SY + 67, xbMax, 4, 2); ctx.fill()
+    roundRect(ctx, cardDefs[0].x + PX, xpBarY, xbMax, 6, 3); ctx.fill()  // bar 6px thick
     ctx.fillStyle = T.accent
-    roundRect(ctx, cardDefs[0].x + P, SY + 67, Math.max(Math.round(xbMax * xpProgress / 100), 4), 4, 2); ctx.fill()
+    roundRect(ctx, cardDefs[0].x + PX, xpBarY, Math.max(Math.round(xbMax * xpProgress / 100), 4), 6, 3); ctx.fill()
     sf(11); ctx.fillStyle = T.textSub
-    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + P, SY + 78)
+    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + PX, xpBarY + 6 + 4 + 10)  // +4px below bar
 
-    // Card 2 — Rank
+    // Card 2 — Rank (emoji + text vertically centered)
     sf(12); ctx.fillStyle = T.textSub
-    ctx.fillText('ランク', cardDefs[1].x + P, SY + 26)
+    ctx.fillText('ランク', cardDefs[1].x + PX, SY + PY + 14)
     sf(22, 700); ctx.fillStyle = T.text
-    ctx.fillText(`${currentRank.emoji} ${currentRank.name}`, cardDefs[1].x + P, SY + 60)
+    ctx.fillText(`${currentRank.emoji} ${currentRank.name}`, cardDefs[1].x + PX, SY + PY + 14 + 4 + 22)
 
-    // Card 3 — Badge
+    // Card 3 — Badge ("/ N個" below the number)
     sf(12); ctx.fillStyle = T.textSub
-    ctx.fillText('バッジ', cardDefs[2].x + P, SY + 26)
+    ctx.fillText('バッジ', cardDefs[2].x + PX, SY + PY + 14)
     sf(34, 700); ctx.fillStyle = T.accent
-    const bStr = String(badges.length)
-    ctx.fillText(bStr, cardDefs[2].x + P, SY + 62)
-    const bW = ctx.measureText(bStr).width
+    ctx.fillText(String(badges.length), cardDefs[2].x + PX, SY + PY + 14 + 4 + 30)
     sf(14); ctx.fillStyle = T.textSub
-    ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + P + bW + 6, SY + 62)
+    ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + PX, SY + PY + 14 + 4 + 30 + 18)
 
-    // ── Today's records section (starts at y=220) ──
-    const RY = SY + SH + 20   // = 220
+    y = SY + SH + 30  // gap cards→records (+10px)
 
+    // ── Today's records section ──
     sf(16, 600); ctx.fillStyle = T.accent
-    ctx.fillText('今日の記録', L, RY + 18)
+    ctx.fillText('今日の記録', L, y + 18)
     ctx.fillStyle = T.border
-    ctx.fillRect(L, RY + 24, CW, 1)
+    ctx.fillRect(L, y + 24, CW, 1)
+    y += 30
 
     if (totalSec === 0) {
       sf(16); ctx.fillStyle = T.textSub
-      ctx.fillText('本日の学習記録がありません', L, RY + 80)
+      ctx.fillText('本日の学習記録がありません', L, y + 40)
     } else {
-      // Total time: 56px semibold + "/ goal" in smaller textSub — baseline y≈308
-      const totalBase = RY + 24 + 22 + 46   // line_y + gap + cap_height ≈ 312
+      y += 30  // gap to total time (+8px)
+
       const totalStr = fmt(totalSec)
-      sf(56, 600); ctx.fillStyle = T.accent
-      ctx.fillText(totalStr, L, totalBase)
+      sf(52, 600); ctx.fillStyle = T.accent  // 52px (down from 56)
+      ctx.fillText(totalStr, L, y + 44)
       const totalW = ctx.measureText(totalStr).width
-      sf(20); ctx.fillStyle = T.textSub
-      ctx.fillText(` / ${fmt(goalSec)}`, L + totalW, totalBase)
+      sf(20); ctx.fillStyle = T.textSub  // 20px goal text
+      ctx.fillText(` / ${fmt(goalSec)}`, L + totalW, y + 44)
+      y += 52
 
-      // "合計" label  — baseline totalBase+20
+      // "合計" label
       sf(12); ctx.fillStyle = T.textSub
-      ctx.fillText('合計', L, totalBase + 20)
+      ctx.fillText('合計', L, y + 12)
+      y += 24  // +8px gap
 
-      // Subject bars — start totalBase+44
+      y += 32  // gap to subject bars (+8px)
+
+      // Subject bars
       const BAR_MAX = Math.round(CW * 0.80)
-      let rowY = totalBase + 44
-
       topSubj.forEach(s => {
         sf(14); ctx.fillStyle = T.text
-        ctx.fillText(s.name, L, rowY + 14)
+        ctx.fillText(s.name, L, y + 14)
         ctx.fillStyle = T.textSub
         ctx.textAlign = 'right'
-        ctx.fillText(fmt(s.sec), R, rowY + 14)
+        ctx.fillText(fmt(s.sec), R, y + 14)
         ctx.textAlign = 'left'
 
-        // Bar BG
+        // Bar BG (+4px gap from name)
         ctx.fillStyle = T.border
-        roundRect(ctx, L, rowY + 20, BAR_MAX, 10, 5); ctx.fill()
-        // Bar fill (ratio to goal)
+        roundRect(ctx, L, y + 24, BAR_MAX, 10, 5); ctx.fill()
+        // Bar fill (min width: 30px)
         const ratio = Math.min(s.sec / goalSec, 1)
         ctx.fillStyle = s.color
-        roundRect(ctx, L, rowY + 20, Math.max(Math.round(BAR_MAX * ratio), 12), 10, 5); ctx.fill()
+        roundRect(ctx, L, y + 24, Math.max(Math.round(BAR_MAX * ratio), 30), 10, 5); ctx.fill()
 
-        rowY += 42
+        y += 46  // +4px row spacing
       })
 
       if (restSubj.length > 0) {
         sf(14); ctx.fillStyle = T.textSub
-        ctx.fillText(`他${restSubj.length}教科  ${fmt(restSec)}`, L, rowY + 14)
+        ctx.fillText(`他${restSubj.length}教科  ${fmt(restSec)}`, L, y + 14)
       }
     }
 
-    // ── Footer: "#StudyLoad" centered ──
+    // ── Footer: "#StudyLoad" fixed at bottom - 40px ──
     sf(16, 600); ctx.fillStyle = T.accent
     ctx.textAlign = 'center'
-    ctx.fillText('#StudyLoad', 600, 606)
+    ctx.fillText('#StudyLoad', 600, 590)
     ctx.textAlign = 'left'
 
     setShareImgUrl(canvas.toDataURL('image/png'))

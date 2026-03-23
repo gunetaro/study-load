@@ -47,6 +47,7 @@ export default function TimerTab() {
   const hiddenStartRef = useRef<number>(0)
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [controlsVisible, setControlsVisible] = useState(true)
+  const [forceLandscape, setForceLandscape] = useState(false)
 
   // Visibility API (スマホ封印)
   useEffect(() => {
@@ -498,6 +499,37 @@ export default function TimerTab() {
     )
   }
 
+  // ── CSS icons ──
+  const PauseIcon = () => (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 4, height: 18, background: 'currentColor', borderRadius: 2 }} />
+      <div style={{ width: 4, height: 18, background: 'currentColor', borderRadius: 2 }} />
+    </div>
+  )
+  const PlayIcon = () => (
+    <div style={{ width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderLeft: '16px solid currentColor', marginLeft: 3 }} />
+  )
+  const StopIcon = () => (
+    <div style={{ width: 16, height: 16, background: 'currentColor', borderRadius: 2 }} />
+  )
+  const RotateIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 4v6h6" /><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+    </svg>
+  )
+
+  const toggleOrientation = async () => {
+    try {
+      const api = screen.orientation as any
+      if (api?.lock) {
+        await api.lock(forceLandscape ? 'portrait' : 'landscape')
+        setForceLandscape(!forceLandscape)
+        return
+      }
+    } catch { /* fallback below */ }
+    setForceLandscape(!forceLandscape)
+  }
+
   // ── フルスクリーン（running / paused / pomo_break）──
   if (isFullscreen) {
     const subjectColor = selectedSubject?.color || theme.accent
@@ -509,6 +541,18 @@ export default function TimerTab() {
       s.includes(tagInput.replace(/^#+/, '')) && !tags.includes(s)
     )
 
+    // Landscape CSS transform fallback
+    const lsTransform = forceLandscape ? {
+      transform: 'rotate(90deg)',
+      transformOrigin: 'center center',
+      width: '100dvh',
+      height: '100dvw',
+      position: 'fixed' as const,
+      top: '50%', left: '50%',
+      marginTop: 'calc(-50dvw)',
+      marginLeft: 'calc(-50dvh)',
+    } : {}
+
     return (
       <div
         onClick={handleScreenTap}
@@ -518,8 +562,18 @@ export default function TimerTab() {
           userSelect: 'none', WebkitUserSelect: 'none',
           display: 'flex', flexDirection: 'column',
           fontFamily: "'DM Sans', 'Hiragino Sans', 'Noto Sans JP', sans-serif",
+          ...lsTransform,
         }}
       >
+        <style>{`
+          @media (orientation: landscape) {
+            .fs-timer-display { font-size: 25vw !important; }
+            .fs-clock-main { font-size: 22vw !important; }
+            .fs-clock-sec { font-size: 10vw !important; }
+            .fs-controls { flex-direction: column !important; position: absolute !important; right: 24px !important; top: 50% !important; transform: translateY(-50%) !important; bottom: auto !important; left: auto !important; padding: 0 !important; }
+          }
+        `}</style>
+
         {/* 教科カラー: 上部の細い線 */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: subjectColor, zIndex: 2 }} />
 
@@ -539,7 +593,7 @@ export default function TimerTab() {
               <div style={{ fontSize: 52 }}>☕</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: theme.text }}>休憩タイム</div>
               <div style={{ fontSize: 14, color: theme.textSub }}>{pomoRound}/{pomoRounds} ラウンド完了</div>
-              <div style={{ fontSize: 'clamp(56px, 14vw, 80px)', fontWeight: 700, color: subjectColor, fontVariantNumeric: 'tabular-nums', letterSpacing: 4, lineHeight: 1, marginTop: 8 }}>
+              <div className="fs-timer-display" style={{ fontSize: 'clamp(56px, 14vw, 80px)', fontWeight: 700, color: subjectColor, fontVariantNumeric: 'tabular-nums', letterSpacing: 4, lineHeight: 1, marginTop: 8 }}>
                 {fmtTime(pomoRemaining)}
               </div>
               <div style={{ fontSize: 13, color: theme.textSub, marginTop: 4 }}>累計: {fmtDuration(pomoElapsed)}</div>
@@ -553,7 +607,7 @@ export default function TimerTab() {
               )}
 
               {displayMode === 'timer' ? (
-                <div style={{
+                <div className="fs-timer-display" style={{
                   fontSize: 'clamp(80px, 22vw, 120px)', fontWeight: 700, color: theme.text,
                   fontVariantNumeric: 'tabular-nums', letterSpacing: 4, lineHeight: 1,
                   transition: 'opacity 0.3s',
@@ -566,13 +620,13 @@ export default function TimerTab() {
                   display: 'flex', alignItems: 'baseline', justifyContent: 'center',
                   transition: 'opacity 0.3s',
                 }}>
-                  <span style={{
+                  <span className="fs-clock-main" style={{
                     fontSize: 'clamp(72px, 20vw, 110px)', fontWeight: 700, color: theme.text,
                     fontVariantNumeric: 'tabular-nums', letterSpacing: 4, lineHeight: 1,
                   }}>
                     {hh}:{mm}
                   </span>
-                  <span style={{
+                  <span className="fs-clock-sec" style={{
                     fontSize: 'clamp(32px, 8vw, 48px)', fontWeight: 400, color: theme.textSub,
                     fontVariantNumeric: 'tabular-nums', letterSpacing: 2,
                   }}>
@@ -590,12 +644,29 @@ export default function TimerTab() {
           )}
         </div>
 
-        {/* ── 下部ボタン（ミニマル丸ボタン、フェードイン/アウト） ── */}
-        <div style={{
+        {/* ── Rotate button ── */}
+        <button
+          onClick={(e) => { e.stopPropagation(); toggleOrientation() }}
+          style={{
+            position: 'absolute', top: 16, right: 16, zIndex: 4,
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'none', border: 'none', cursor: 'pointer',
+            color: theme.textSub,
+            opacity: controlsVisible ? 0.3 : 0.1,
+            transition: 'opacity 0.5s ease',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <RotateIcon />
+        </button>
+
+        {/* ── Controls (CSS icons, fade) ── */}
+        <div className="fs-controls" style={{
           position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 3,
           padding: '24px 40px',
           paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          gap: 16,
           opacity: controlsVisible ? 0.6 : 0.15,
           transition: 'opacity 0.5s ease',
           pointerEvents: 'auto',
@@ -609,13 +680,13 @@ export default function TimerTab() {
               }}>
                 次のラウンド
               </button>
-              <div style={{ width: 16 }} />
               <button onClick={(e) => { e.stopPropagation(); handleStop() }} style={{
                 width: 56, height: 56, borderRadius: '50%',
                 background: theme.danger, border: 'none',
-                fontSize: 22, cursor: 'pointer', color: '#fff',
+                cursor: 'pointer', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                ⏹
+                <StopIcon />
               </button>
             </>
           ) : (
@@ -623,18 +694,20 @@ export default function TimerTab() {
               <button onClick={(e) => { e.stopPropagation(); handlePause() }} style={{
                 width: 56, height: 56, borderRadius: '50%',
                 background: state === 'paused' ? subjectColor : theme.cardAlt,
-                border: 'none',
-                fontSize: 22, cursor: 'pointer',
+                border: state === 'paused' ? 'none' : `1px solid ${theme.border}`,
+                cursor: 'pointer',
                 color: state === 'paused' ? '#fff' : theme.text,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                {state === 'paused' ? '▶' : '⏸'}
+                {state === 'paused' ? <PlayIcon /> : <PauseIcon />}
               </button>
               <button onClick={(e) => { e.stopPropagation(); handleStop() }} style={{
                 width: 56, height: 56, borderRadius: '50%',
                 background: theme.danger, border: 'none',
-                fontSize: 22, cursor: 'pointer', color: '#fff',
+                cursor: 'pointer', color: '#fff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                ⏹
+                <StopIcon />
               </button>
             </>
           )}

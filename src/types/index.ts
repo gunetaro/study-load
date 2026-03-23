@@ -1,4 +1,4 @@
-export type Theme = 'minimal' | 'pop' | 'midnight'
+export type Theme = 'minimal' | 'pop' | 'midnight' | 'pastel'
 
 export interface ThemeColors {
   bg: string
@@ -27,16 +27,16 @@ export const THEMES: Record<Theme, ThemeColors> = {
     success: '#10B981',
   },
   pop: {
-    bg: '#FFF5FB',
+    bg: '#FFF7F5',
     card: '#FFFFFF',
-    cardAlt: '#FFF0F8',
-    text: '#1A1A1A',
-    textSub: '#C0829E',
-    accent: '#FF3B8B',
-    accentLight: '#FFF0F7',
-    border: '#FFD6EC',
-    danger: '#FF3B3B',
-    success: '#00C896',
+    cardAlt: '#FFF0EE',
+    text: '#3A2E2A',
+    textSub: '#A8A29E',
+    accent: '#F472B6',
+    accentLight: '#FDF2F8',
+    border: '#F1E4E8',
+    danger: '#FB7185',
+    success: '#6EE7B7',
   },
   midnight: {
     bg: '#0D0D1A',
@@ -49,6 +49,18 @@ export const THEMES: Record<Theme, ThemeColors> = {
     border: '#2A2A40',
     danger: '#FF4D4D',
     success: '#34D399',
+  },
+  pastel: {
+    bg: '#F8F7FF',
+    card: '#FFFFFF',
+    cardAlt: '#F3F0FF',
+    text: '#2A2A3A',
+    textSub: '#B5B5C3',
+    accent: '#C4B5FD',
+    accentLight: '#F5F3FF',
+    border: '#E9E7F5',
+    danger: '#FBCFE8',
+    success: '#A7F3D0',
   },
 }
 

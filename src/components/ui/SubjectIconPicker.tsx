@@ -3,7 +3,7 @@ import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ThemeColors } from '@/types'
 
-const EMOJIS = ['📚','✏️','📐','🧪','🌍','📝','💻','🎵','🏋️','🎨','📊','🔬','📖','🧮','🗺️','🔭','⚗️','🎯','🎭','🌐']
+const EMOJIS = ['📐','📘','📗','📙','📕','🎯','💡','🌟','✨','🎨','🎵','💻','📊','🔬','🌍','✏️','📝','📚','🧠','⭐','🌸','🍎','🔢','🅰️','🧪','📖','🏃','⚽','🎹','🖥️']
 
 interface PickerProps {
   value: string
@@ -89,16 +89,19 @@ export function SubjectIconPicker({ value, userId, onChange, theme }: PickerProp
 
       {tab === 'image' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 64, height: 64, borderRadius: 12, overflow: 'hidden', flexShrink: 0,
-            background: theme.cardAlt, border: `1px solid ${theme.border}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {imagePreview
-              ? <img src={imagePreview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <span style={{ fontSize: 28 }}>🖼</span>
-            }
-          </div>
+          {imagePreview && (
+            <div style={{
+              width: 64, height: 64, borderRadius: 12, overflow: 'hidden', flexShrink: 0,
+              background: theme.cardAlt, border: `1px solid ${theme.border}`,
+            }}>
+              <img
+                src={imagePreview}
+                alt=""
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            </div>
+          )}
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -108,7 +111,7 @@ export function SubjectIconPicker({ value, userId, onChange, theme }: PickerProp
               opacity: uploading ? 0.6 : 1,
             }}
           >
-            {uploading ? 'アップロード中...' : imagePreview ? '変更' : '画像を選択'}
+            {uploading ? 'アップロード中...' : imagePreview ? '📸 変更' : '📸 画像を選択'}
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
         </div>

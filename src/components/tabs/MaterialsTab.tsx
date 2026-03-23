@@ -1,5 +1,5 @@
 'use client'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
@@ -14,6 +14,7 @@ interface EditMaterial { id?: string; name: string; subject_id: string }
 export default function MaterialsTab() {
   const { subjects, refreshSubjects, userId, theme, showToast } = useApp()
   const supabase = createClient()
+  const colorInputRef = useRef<HTMLInputElement>(null)
 
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null)
   const [materials, setMaterials] = useState<Record<string, Material[]>>({})
@@ -244,24 +245,30 @@ export default function MaterialsTab() {
                 }} />
               ))}
               {/* カスタムカラーピッカー */}
-              <label style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }} title="カスタムカラー">
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%',
-                  background: 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)',
-                  border: `3px solid ${!PRESET_COLORS.includes(editSubject.color) ? theme.text : 'transparent'}`,
-                }} />
-                <input
-                  type="color"
-                  value={editSubject.color}
-                  onChange={e => setEditSubject(p => ({ ...p, color: e.target.value }))}
-                  style={{ position: 'absolute', opacity: 0, width: 0, height: 0, top: 0, left: 0 }}
-                />
-              </label>
+              <button
+                onClick={() => colorInputRef.current?.click()}
+                title="カスタムカラー"
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                  border: `3px solid ${!PRESET_COLORS.includes(editSubject.color) ? theme.accent : theme.border}`,
+                  background: theme.cardAlt, cursor: 'pointer', fontSize: 16,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                🎨
+              </button>
+              <input
+                ref={colorInputRef}
+                type="color"
+                value={editSubject.color}
+                onChange={e => setEditSubject(p => ({ ...p, color: e.target.value }))}
+                style={{ display: 'none' }}
+              />
               {/* 現在選択中の色プレビュー */}
               {!PRESET_COLORS.includes(editSubject.color) && (
                 <div style={{
                   width: 32, height: 32, borderRadius: '50%', background: editSubject.color,
-                  border: `3px solid ${theme.text}`, flexShrink: 0,
+                  border: `3px solid ${theme.accent}`, flexShrink: 0,
                 }} />
               )}
             </div>

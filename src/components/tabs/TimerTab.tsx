@@ -270,7 +270,7 @@ export default function TimerTab() {
               color: mode===m ? theme.accent : theme.textSub,
               fontWeight: 700, fontSize: 13, cursor: 'pointer',
             }}>
-              {m === 'normal' ? '⏱ 通常' : '🍅 ポモドーロ'}
+              {m === 'normal' ? '⏱ 通常' : '⏰ ポモドーロ'}
             </button>
           ))}
         </div>
@@ -398,7 +398,7 @@ export default function TimerTab() {
             <div style={{ width: '100%' }}>
               {mode === 'pomodoro' && (
                 <div style={{ fontSize: 12, color: subjectColor, marginBottom: 12, fontWeight: 600 }}>
-                  {pomoPhase === 'work' ? `🍅 作業 ${pomoRound}/${pomoRounds}` : '☕ 休憩'}
+                  {pomoPhase === 'work' ? `⏰ 作業 ${pomoRound}/${pomoRounds}` : '☕ 休憩'}
                 </div>
               )}
 

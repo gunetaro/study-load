@@ -307,7 +307,7 @@ export default function ProfileTab() {
       {/* Theme Modal */}
       <Modal open={themeModal} onClose={() => setThemeModal(false)} title="テーマ設定">
         <div>
-          {(['minimal','pop','midnight'] as Theme[]).map(t => (
+          {(['minimal','pop','midnight','pastel'] as Theme[]).map(t => (
             <button key={t} onClick={() => { setThemeName(t); setThemeModal(false) }} style={{
               width: '100%', marginBottom: 8, padding: '14px 16px',
               borderRadius: 12, border: `2px solid ${themeName===t ? theme.accent : theme.border}`,
@@ -317,10 +317,10 @@ export default function ProfileTab() {
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: THEMES[t].accent, flexShrink: 0 }} />
               <div style={{ textAlign: 'left' }}>
                 <div style={{ fontWeight: 700, color: THEMES[t].text }}>
-                  {t === 'minimal' ? 'シンプル' : t === 'pop' ? 'ポップ' : 'ミッドナイト'}
+                  {t === 'minimal' ? 'シンプル' : t === 'pop' ? 'ポップ' : t === 'midnight' ? 'ミッドナイト' : 'パステル'}
                 </div>
                 <div style={{ fontSize: 12, color: THEMES[t].textSub }}>
-                  {t === 'minimal' ? 'クリーンな白ベース' : t === 'pop' ? '鮮やかなピンク系' : 'ダークモード'}
+                  {t === 'minimal' ? 'クリーンな白ベース' : t === 'pop' ? 'やわらかピンク系' : t === 'midnight' ? 'ダークモード' : 'やさしいパステル'}
                 </div>
               </div>
               {themeName===t && <span style={{ marginLeft: 'auto', color: theme.accent, fontSize: 18 }}>✓</span>}

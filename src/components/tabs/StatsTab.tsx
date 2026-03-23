@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { fmtDuration, Session } from '@/types'
+import { StatsSkeleton } from '@/components/ui/Skeleton'
 
 type Tab = 'total' | 'today' | 'week' | 'month' | 'subject'
 
@@ -138,7 +139,7 @@ export default function StatsTab() {
     return '🌙 夜型勉強スタイル'
   }
 
-  if (loading) return <div style={{ textAlign: 'center', color: theme.textSub, padding: 32 }}>読み込み中...</div>
+  if (loading) return <StatsSkeleton border={theme.border} borderLight={theme.cardAlt} />
 
   return (
     <div>

@@ -5,6 +5,7 @@ import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
 import { SubjectIconDisplay } from '@/components/ui/SubjectIconPicker'
 import { fmtTime, fmtDuration, BADGES, XP_PER_MIN, RANKS, getRank, XP_PER_LEVEL, Subject, Material, Session } from '@/types'
+import { TimerSkeleton } from '@/components/ui/Skeleton'
 
 type TimerMode = 'normal' | 'pomodoro'
 type TimerState = 'idle' | 'subject' | 'material' | 'running' | 'paused' | 'saving' | 'pomo_break'
@@ -42,6 +43,7 @@ export default function TimerTab() {
   // Today's sessions for idle screen
   const [todaySessions, setTodaySessions] = useState<Session[]>([])
   const [weekData, setWeekData] = useState<number[]>([0,0,0,0,0,0,0])
+  const [idleLoading, setIdleLoading] = useState(true)
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number>(0)
@@ -128,17 +130,19 @@ export default function TimerTab() {
   // Load today's sessions + week data for idle screen
   useEffect(() => {
     if (!userId) return
+    setIdleLoading(true)
     const today = new Date().toLocaleDateString('en-CA')
-    supabase.from('sessions').select('*').eq('user_id', userId).eq('date', today).then(({ data }) => setTodaySessions(data || []))
-    // Week data
     const ws = new Date(); ws.setDate(ws.getDate() - ws.getDay()); ws.setHours(0,0,0,0)
     const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(ws); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0] })
-    const weStart = dates[0]
-    const weEnd = dates[6]
-    supabase.from('sessions').select('date, duration').eq('user_id', userId).gte('date', weStart).lte('date', weEnd).then(({ data }) => {
+    Promise.all([
+      supabase.from('sessions').select('*').eq('user_id', userId).eq('date', today),
+      supabase.from('sessions').select('date, duration').eq('user_id', userId).gte('date', dates[0]).lte('date', dates[6]),
+    ]).then(([todayRes, weekRes]) => {
+      setTodaySessions(todayRes.data || [])
       const w = [0,0,0,0,0,0,0]
-      ;(data || []).forEach(s => { const idx = dates.indexOf(s.date); if (idx >= 0) w[idx] += s.duration })
+      ;(weekRes.data || []).forEach((s: any) => { const idx = dates.indexOf(s.date); if (idx >= 0) w[idx] += s.duration })
       setWeekData(w)
+      setIdleLoading(false)
     })
   }, [userId, state]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -326,6 +330,10 @@ export default function TimerTab() {
   }
 
   // --- Renders ---
+  if ((state === 'idle' || state === 'subject') && idleLoading) {
+    return <TimerSkeleton border={theme.border} borderLight={theme.cardAlt} />
+  }
+
   if (state === 'idle' || state === 'subject') {
     const xp = profile?.xp || 0
     const level = Math.floor(xp / 100) + 1

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
 import { Session, Material, fmtDuration } from '@/types'
+import { TimelineSkeleton } from '@/components/ui/Skeleton'
 
 type ViewMode = 'list' | 'calendar'
 
@@ -212,7 +213,7 @@ export default function TimelineTab() {
 
       {/* Sessions */}
       {loading ? (
-        <div style={{ textAlign: 'center', color: theme.textSub, padding: 32 }}>読み込み中...</div>
+        <TimelineSkeleton border={theme.border} borderLight={theme.cardAlt} />
       ) : sortedDays.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 16px' }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>📝</div>

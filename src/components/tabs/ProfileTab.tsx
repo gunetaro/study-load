@@ -46,10 +46,15 @@ export default function ProfileTab() {
   const pomoRounds = settings?.pomo_settings?.rounds ?? 4
   const [pomoEdit, setPomoEdit] = useState({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds })
 
+  const [editHeaderFile, setEditHeaderFile] = useState<File | null>(null)
+  const [editHeaderPreview, setEditHeaderPreview] = useState<string | null>(null)
+
   const handleEditOpen = () => {
     setEditName(profile?.name || userMeta?.full_name || '')
     setEditAvatarFile(null)
     setEditAvatarPreview(null)
+    setEditHeaderFile(null)
+    setEditHeaderPreview(null)
     setEditModal(true)
   }
 
@@ -62,23 +67,13 @@ export default function ProfileTab() {
     reader.readAsDataURL(file)
   }
 
-  const handleHeaderChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleEditHeaderChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !userId) return
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-    const path = `${userId}.${ext}`
-    const { error } = await supabase.storage
-      .from('headers')
-      .upload(path, file, { upsert: true, contentType: file.type || `image/${ext}` })
-    if (error) {
-      showToast('ヘッダー画像のアップロードに失敗しました')
-      return
-    }
-    const { data: urlData } = supabase.storage.from('headers').getPublicUrl(path)
-    const headerUrl = `${urlData.publicUrl}?t=${Date.now()}`
-    await supabase.from('profiles').update({ header_url: headerUrl }).eq('id', userId)
-    await refreshProfile()
-    showToast('ヘッダー画像を更新しました')
+    if (!file) return
+    setEditHeaderFile(file)
+    const reader = new FileReader()
+    reader.onload = () => setEditHeaderPreview(reader.result as string)
+    reader.readAsDataURL(file)
   }
 
   const handleEditSave = async () => {
@@ -93,7 +88,7 @@ export default function ProfileTab() {
         .from('avatars')
         .upload(path, editAvatarFile, { upsert: true, contentType: editAvatarFile.type || `image/${ext}` })
       if (uploadError) {
-        showToast('画像のアップロードに失敗しました')
+        showToast('アバターのアップロードに失敗しました')
         setSaving(false)
         return
       }
@@ -101,9 +96,26 @@ export default function ProfileTab() {
       avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`
     }
 
+    let headerUrl: string | null = profile?.header_url || null
+    if (editHeaderFile) {
+      const ext = editHeaderFile.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const path = `${userId}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('headers')
+        .upload(path, editHeaderFile, { upsert: true, contentType: editHeaderFile.type || `image/${ext}` })
+      if (uploadError) {
+        showToast('ヘッダーのアップロードに失敗しました')
+        setSaving(false)
+        return
+      }
+      const { data: urlData } = supabase.storage.from('headers').getPublicUrl(path)
+      headerUrl = `${urlData.publicUrl}?t=${Date.now()}`
+    }
+
     await supabase.from('profiles').update({
       name: editName.trim() || null,
       ...(editAvatarFile ? { avatar_url: avatarUrl } : {}),
+      ...(editHeaderFile ? { header_url: headerUrl } : {}),
     }).eq('id', userId)
     await refreshProfile()
     setSaving(false)
@@ -375,111 +387,118 @@ export default function ProfileTab() {
     return true
   })
 
+  // Recent 4 badges for inline display
+  const recentBadges = BADGES.filter(b => hasBadge(b.key)).slice(-4)
+  const displayBadges = recentBadges.length >= 4 ? recentBadges : BADGES.slice(0, 4)
+
   return (
     <div>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
-      <input ref={headerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleHeaderChange} />
 
-      {/* Header banner + Avatar overlay */}
-      <div style={{ position: 'relative', marginBottom: 40 }}>
-        {/* Header image */}
-        <div
-          onClick={() => headerInputRef.current?.click()}
-          style={{
-            width: '100%', height: 120, borderRadius: '20px 20px 0 0', cursor: 'pointer', overflow: 'hidden',
-            background: displayHeader ? undefined : `linear-gradient(135deg, ${theme.accent}40, ${theme.accent}15)`,
-          }}
-        >
-          {displayHeader && (
-            <img src={displayHeader} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-          )}
-        </div>
+      {/* 1. Header banner */}
+      <div style={{
+        width: '100%', height: 120, borderRadius: '20px 20px 0 0', overflow: 'hidden',
+        background: displayHeader ? undefined : `linear-gradient(135deg, ${theme.accent}40, ${theme.accent}15)`,
+      }}>
+        {displayHeader && (
+          <img src={displayHeader} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+        )}
+      </div>
 
-        {/* Avatar overlapping header */}
-        <div style={{ position: 'absolute', bottom: -30, left: 20 }}>
-          {displayAvatar ? (
-            <img src={displayAvatar} alt=""
-              style={{ width: 64, height: 64, borderRadius: '50%', border: `3px solid ${theme.bg}`, objectFit: 'cover' }}
-              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-          ) : (
-            <div style={{ width: 64, height: 64, borderRadius: '50%', border: `3px solid ${theme.bg}`, background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>
-              👤
+      {/* 2. Avatar overlapping header */}
+      <div style={{ marginTop: -28, marginLeft: 16, marginBottom: 6 }}>
+        {displayAvatar ? (
+          <img src={displayAvatar} alt=""
+            style={{ width: 56, height: 56, borderRadius: '50%', border: `3px solid ${theme.bg}`, objectFit: 'cover' }}
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+        ) : (
+          <div style={{ width: 56, height: 56, borderRadius: '50%', border: `3px solid ${theme.bg}`, background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>
+            👤
+          </div>
+        )}
+      </div>
+
+      {/* 3. Name + Title + Edit button */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', padding: '0 4px', marginBottom: 10 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: theme.text }}>{displayName}</div>
+          {profile?.selected_title && (
+            <div style={{ fontSize: 11, color: theme.accent, fontWeight: 600, marginTop: 1 }}>
+              ✨ {TITLES.find(t => t.key === profile.selected_title)?.label}
             </div>
           )}
         </div>
-
-        {/* Edit button */}
         <button onClick={handleEditOpen} style={{
-          position: 'absolute', bottom: -24, right: 12,
           background: theme.cardAlt, border: `1px solid ${theme.border}`,
-          borderRadius: 10, padding: '5px 10px', fontSize: 11, fontWeight: 600,
-          cursor: 'pointer', color: theme.textSub,
+          borderRadius: 10, padding: '4px 10px', fontSize: 11, fontWeight: 600,
+          cursor: 'pointer', color: theme.textSub, flexShrink: 0, marginTop: 2,
         }}>
           ✏️ 編集
         </button>
       </div>
 
-      {/* Name + Title */}
-      <div style={{ padding: '0 4px', marginBottom: 12 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, color: theme.text }}>{displayName}</div>
-        {profile?.selected_title && (
-          <div style={{ fontSize: 12, color: theme.accent, fontWeight: 600, marginTop: 2 }}>
-            ✨ {TITLES.find(t => t.key === profile.selected_title)?.label}
-          </div>
-        )}
-      </div>
-
-      {/* Rank + XP bar */}
-      <div style={{ background: theme.card, borderRadius: 16, padding: '12px 14px', marginBottom: 10, border: `1px solid ${theme.border}` }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <span style={{ fontSize: 20 }}>{currentRank.emoji}</span>
-          <span style={{ fontWeight: 800, fontSize: 15, color: theme.text }}>{currentRank.name}</span>
-          <span style={{ fontSize: 12, color: theme.textSub, marginLeft: 'auto' }}>Lv.{level}</span>
+      {/* 4. Rank + XP bar + Rank list */}
+      <div style={{ background: theme.card, borderRadius: 14, padding: '10px 14px', marginBottom: 8, border: `1px solid ${theme.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          <span style={{ fontSize: 22 }}>{currentRank.emoji}</span>
+          <span style={{ fontWeight: 800, fontSize: 16, color: theme.text }}>{currentRank.name} Lv.{level}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontSize: 11, color: theme.textSub }}>XP: {xp}</span>
-          <span style={{ fontSize: 11, color: theme.textSub }}>
-            {nextRank ? `→ ${nextRank.name} Lv.${nextRank.minLevel}` : '最高ランク'}
-          </span>
+        <div style={{ fontSize: 11, color: theme.textSub, marginBottom: 6 }}>
+          XP: {xp} {nextRank ? `→ ${nextRank.name} Lv.${nextRank.minLevel}` : '（最高ランク）'}
         </div>
-        <div style={{ height: 6, background: theme.border, borderRadius: 3 }}>
-          <div style={{ height: '100%', width: `${xpProgress}%`, background: theme.accent, borderRadius: 3, transition: 'width 0.5s' }} />
+        <div style={{ height: 6, background: theme.border, borderRadius: 3, marginBottom: 8 }}>
+          <div style={{ height: '100%', width: `${xpProgress}%`, background: currentRank.color, borderRadius: 3, transition: 'width 0.5s' }} />
+        </div>
+        {/* Rank progression */}
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          {RANKS.map(r => (
+            <div key={r.name} style={{ textAlign: 'center', opacity: r.name === currentRank.name ? 1 : 0.3 }}>
+              <div style={{ fontSize: 14 }}>{r.emoji}</div>
+              <div style={{ fontSize: 8, color: theme.text, fontWeight: 600 }}>{r.name}</div>
+              <div style={{ fontSize: 7, color: theme.textSub }}>Lv.{r.minLevel}+</div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Badges inline */}
+      {/* 5. Badges — recent 4 + tap for all */}
       <div
         onClick={() => setBadgeModal(true)}
-        style={{ background: theme.card, borderRadius: 16, padding: '10px 14px', marginBottom: 10, border: `1px solid ${theme.border}`, cursor: 'pointer' }}
+        style={{ background: theme.card, borderRadius: 14, padding: '8px 14px', marginBottom: 8, border: `1px solid ${theme.border}`, cursor: 'pointer' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: theme.text }}>🏅 バッジ</span>
-          <span style={{ fontSize: 12, color: theme.textSub }}>{badges.length}/{BADGES.length}</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>🏅 バッジ</span>
+          <span style={{ fontSize: 11, color: theme.textSub }}>{badges.length}/{BADGES.length}</span>
         </div>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {BADGES.slice(0, 10).map(b => (
-            <span key={b.key} style={{ fontSize: 18, opacity: hasBadge(b.key) ? 1 : 0.2 }}>{b.emoji}</span>
-          ))}
-          {BADGES.length > 10 && <span style={{ fontSize: 12, color: theme.textSub, alignSelf: 'center' }}>…</span>}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {displayBadges.map(b => {
+            const owned = hasBadge(b.key)
+            return (
+              <div key={b.key} style={{ flex: 1, textAlign: 'center', opacity: owned ? 1 : 0.3 }}>
+                <div style={{ fontSize: 20 }}>{b.emoji}</div>
+                <div style={{ fontSize: 8, color: owned ? theme.text : theme.textSub, fontWeight: 600, marginTop: 1 }}>{b.label}</div>
+              </div>
+            )
+          })}
         </div>
       </div>
 
-      {/* Title select inline */}
+      {/* 6. Title — current + tap to change */}
       <div
         onClick={() => setTitleModal(true)}
-        style={{ background: theme.card, borderRadius: 16, padding: '10px 14px', marginBottom: 12, border: `1px solid ${theme.border}`, cursor: 'pointer' }}
+        style={{ background: theme.card, borderRadius: 14, padding: '8px 14px', marginBottom: 10, border: `1px solid ${theme.border}`, cursor: 'pointer' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: theme.text }}>✨ 称号</span>
-          <span style={{ fontSize: 12, color: theme.accent, fontWeight: 600 }}>
-            {profile?.selected_title ? TITLES.find(t => t.key === profile.selected_title)?.label : '未選択'}
+          <span style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>✨ 称号</span>
+          <span style={{ fontSize: 11, color: theme.accent, fontWeight: 600 }}>
+            {profile?.selected_title ? TITLES.find(t => t.key === profile.selected_title)?.label : '未選択'} ›
           </span>
         </div>
       </div>
 
-      {/* Menu grid — 4 buttons */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+      {/* 7. Menu grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[
           { label: '🎯 目標設定', onClick: () => { setGoalDaily(goal?.daily_minutes ?? 120); setGoalWeekly(goal?.weekly_minutes ?? 600); setGoalModal(true) } },
           { label: '📤 シェア画像', onClick: generateShareImage },
@@ -488,9 +507,9 @@ export default function ProfileTab() {
         ].map(btn => (
           <button key={btn.label} onClick={btn.onClick} style={{
             background: theme.card, border: `1px solid ${theme.border}`,
-            borderRadius: 14, padding: '12px', fontSize: 13, fontWeight: 600,
+            borderRadius: 12, padding: '10px', fontSize: 12, fontWeight: 600,
             cursor: 'pointer', color: theme.text,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
           }}>
             {btn.label}
           </button>
@@ -631,39 +650,58 @@ export default function ProfileTab() {
         </div>
       </Modal>
 
-      {/* ── Edit Profile Modal ── */}
+      {/* ── Edit Profile Modal (name + avatar + header) ── */}
       <Modal open={editModal} onClose={() => setEditModal(false)} title="プロフィール編集">
         <div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+          {/* Header image */}
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>ヘッダー画像</label>
+            <div
+              onClick={() => headerInputRef.current?.click()}
+              style={{
+                width: '100%', height: 80, borderRadius: 12, cursor: 'pointer', overflow: 'hidden',
+                background: (editHeaderPreview || displayHeader) ? undefined : `linear-gradient(135deg, ${theme.accent}40, ${theme.accent}15)`,
+                border: `1px solid ${theme.border}`,
+              }}
+            >
+              {(editHeaderPreview || displayHeader) && (
+                <img src={editHeaderPreview || displayHeader} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: theme.textSub, marginTop: 4 }}>タップして変更</div>
+            <input ref={headerInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleEditHeaderChange} />
+          </div>
+
+          {/* Avatar */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, marginBottom: 6, alignSelf: 'flex-start' }}>アバター</label>
             <div
               onClick={() => fileInputRef.current?.click()}
-              style={{ position: 'relative', cursor: 'pointer', width: 80, height: 80 }}
+              style={{ position: 'relative', cursor: 'pointer', width: 72, height: 72 }}
             >
               {(editAvatarPreview || displayAvatar) ? (
-                <img
-                  src={editAvatarPreview || displayAvatar}
-                  alt=""
-                  style={{ width: 80, height: 80, borderRadius: '50%', border: `3px solid ${theme.accent}`, objectFit: 'cover' }}
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                />
+                <img src={editAvatarPreview || displayAvatar} alt=""
+                  style={{ width: 72, height: 72, borderRadius: '50%', border: `3px solid ${theme.accent}`, objectFit: 'cover' }}
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
               ) : (
-                <div style={{ width: 80, height: 80, borderRadius: '50%', background: theme.accentLight, border: `3px solid ${theme.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>
+                <div style={{ width: 72, height: 72, borderRadius: '50%', background: theme.accentLight, border: `3px solid ${theme.accent}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>
                   👤
                 </div>
               )}
               <div style={{
                 position: 'absolute', bottom: 0, right: 0,
                 background: theme.accent, borderRadius: '50%',
-                width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12, color: '#fff', border: `2px solid ${theme.card}`,
+                width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, color: '#fff', border: `2px solid ${theme.card}`,
               }}>
                 📷
               </div>
             </div>
-            <div style={{ fontSize: 11, color: theme.textSub, marginTop: 6 }}>タップして変更</div>
             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
           </div>
 
+          {/* Name */}
           <div style={{ marginBottom: 20 }}>
             <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>表示名</label>
             <input

@@ -6,7 +6,7 @@ import { Modal } from '@/components/ui/Modal'
 import { SubjectIconPicker, SubjectIconDisplay } from '@/components/ui/SubjectIconPicker'
 import { Subject, Material } from '@/types'
 
-const PRESET_COLORS = ['#5B8DEF','#EF8B5B','#6BC9A4','#C97BB6','#E8B44A','#EF5B5B','#5BEFD0','#B45BEF','#8BC97B','#C9B47B']
+const PRESET_COLORS = ['#89A6FB','#FFAD99','#7FD1AE','#BFA2DB','#EBCB8B','#F28FA9','#81C8BE','#9A8CFF','#8DC891','#C9A86A']
 
 interface EditSubject { id?: string; name: string; icon: string; color: string }
 interface EditMaterial { id?: string; name: string; subject_id: string }

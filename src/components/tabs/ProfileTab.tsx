@@ -7,7 +7,7 @@ import { BADGES, TITLES, THEMES, Theme, ThemeColors, RANKS, getRank, XP_PER_LEVE
 import { useRouter } from 'next/navigation'
 
 export default function ProfileTab() {
-  const { userId, userMeta, profile, badges, subjects, goal, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, refreshGoal, showToast } = useApp()
+  const { userId, userMeta, profile, badges, subjects, goal, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, refreshGoal, showToast, isDemo } = useApp()
   const supabase = createClient()
   const router = useRouter()
 
@@ -89,6 +89,7 @@ export default function ProfileTab() {
 
   const handleEditSave = async () => {
     if (!userId) return
+    if (isDemo) { showToast('デモモードです。Googleログインするとデータを保存できます'); setEditModal(false); return }
     setSaving(true)
 
     let avatarUrl: string | null = profile?.avatar_url || null
@@ -553,17 +554,30 @@ export default function ProfileTab() {
         ))}
       </div>
 
-      {/* Logout — standalone, subdued */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
-        <button onClick={handleLogout} style={{
-          width: '60%', padding: '10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
-          cursor: 'pointer', textAlign: 'center',
-          background: `${theme.danger}1A`, color: `${theme.danger}99`,
-          border: `1px solid ${theme.danger}33`,
-        }}>
-          🚪 ログアウト
-        </button>
-      </div>
+      {/* Logout or Demo CTA */}
+      {isDemo ? (
+        <div style={{ textAlign: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 8 }}>気に入ったら</div>
+          <button onClick={() => router.push('/')} style={{
+            padding: '12px 32px', borderRadius: 14,
+            background: theme.accent, color: '#fff', border: 'none',
+            fontWeight: 700, fontSize: 14, cursor: 'pointer',
+          }}>
+            Googleでログイン
+          </button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+          <button onClick={handleLogout} style={{
+            width: '60%', padding: '10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+            cursor: 'pointer', textAlign: 'center',
+            background: `${theme.danger}1A`, color: `${theme.danger}99`,
+            border: `1px solid ${theme.danger}33`,
+          }}>
+            🚪 ログアウト
+          </button>
+        </div>
+      )}
 
       {/* ── Theme Modal ── */}
       <Modal open={themeModal} onClose={() => setThemeModal(false)} title="テーマ">

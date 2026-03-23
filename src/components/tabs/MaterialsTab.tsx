@@ -17,7 +17,7 @@ interface EditSubject { id?: string; name: string; icon: string; color: string }
 interface EditMaterial { id?: string; name: string; url: string; memo: string; subject_id: string }
 
 export default function MaterialsTab() {
-  const { subjects, refreshSubjects, userId, theme, themeName, showToast } = useApp()
+  const { subjects, refreshSubjects, userId, theme, themeName, showToast, isDemo } = useApp()
   const supabase = createClient()
   const colorInputRef = useRef<HTMLInputElement>(null)
   const presetColors = THEME_PRESET_COLORS[themeName] || THEME_PRESET_COLORS.minimal
@@ -70,7 +70,10 @@ export default function MaterialsTab() {
     setSubjectModal(true)
   }
 
+  const demoGuard = () => { if (isDemo) { showToast('デモモードです。Googleログインするとデータを保存できます'); return true } return false }
+
   const saveSubject = async () => {
+    if (demoGuard()) { setSubjectModal(false); return }
     if (!editSubject.name.trim()) { showToast('教科名を入力してください'); return }
     setSavingSubject(true)
     if (editSubject.id) {
@@ -96,6 +99,7 @@ export default function MaterialsTab() {
 
   const deleteSubject = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    if (demoGuard()) return
     if (!confirm('この教科と関連する教材をすべて削除しますか？')) return
     await supabase.from('materials').delete().eq('subject_id', id)
     await supabase.from('subjects').delete().eq('id', id)
@@ -116,6 +120,7 @@ export default function MaterialsTab() {
   }
 
   const saveMaterial = async () => {
+    if (demoGuard()) { setMaterialModal(false); return }
     if (!editMaterial.name.trim()) { showToast('教材名を入力してください'); return }
     setSavingMaterial(true)
     const matData = {
@@ -139,6 +144,7 @@ export default function MaterialsTab() {
   }
 
   const deleteMaterial = async (m: Material) => {
+    if (demoGuard()) return
     if (!confirm('この教材を削除しますか？')) return
     await supabase.from('materials').delete().eq('id', m.id)
     setMaterials(prev => ({ ...prev, [m.subject_id]: (prev[m.subject_id] || []).filter(x => x.id !== m.id) }))

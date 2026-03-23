@@ -5,13 +5,14 @@ import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
 import { Session, Material, fmtDuration } from '@/types'
 import { TimelineSkeleton } from '@/components/ui/Skeleton'
+import { getDemoSessions } from '@/lib/demo-data'
 
 type ViewMode = 'list' | 'calendar'
 
 function ds(d: Date) { return d.toISOString().split('T')[0] }
 
 export default function TimelineTab() {
-  const { userId, theme, subjects, showToast } = useApp()
+  const { userId, theme, subjects, showToast, isDemo } = useApp()
   const supabase = createClient()
 
   const [sessions, setSessions] = useState<Session[]>([])
@@ -34,6 +35,15 @@ export default function TimelineTab() {
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
+    if (isDemo) {
+      const list = getDemoSessions()
+      setSessions(list)
+      const tags = new Set<string>()
+      list.forEach(s => s.session_tags?.forEach(t => tags.add(t.tag)))
+      setAllTags(Array.from(tags).sort())
+      setLoading(false)
+      return
+    }
     const { data } = await supabase
       .from('sessions').select('*, subjects(*), materials(*), session_tags(*)')
       .eq('user_id', userId).order('created_at', { ascending: false })
@@ -43,7 +53,7 @@ export default function TimelineTab() {
     list.forEach((s: Session) => s.session_tags?.forEach(t => tags.add(t.tag)))
     setAllTags(Array.from(tags).sort())
     setLoading(false)
-  }, [userId, supabase])
+  }, [userId, supabase, isDemo])
 
   useEffect(() => { loadSessions() }, [loadSessions])
 
@@ -93,6 +103,7 @@ export default function TimelineTab() {
 
   const handleSaveEdit = async () => {
     if (!editSession) return
+    if (isDemo) { showToast('デモモードです。Googleログインするとデータを保存できます'); setEditSession(null); return }
     await supabase.from('sessions').update({ memo: editMemo || null, url: editUrl.trim() || null, material_id: editMaterialId || null }).eq('id', editSession.id)
     await supabase.from('session_tags').delete().eq('session_id', editSession.id)
     const finalTags = editTagInput.trim() ? [...editTags, editTagInput.trim().replace(/^#+/, '')] : editTags
@@ -103,6 +114,7 @@ export default function TimelineTab() {
   }
 
   const handleDelete = async (id: string) => {
+    if (isDemo) { showToast('デモモードです。Googleログインするとデータを保存できます'); return }
     if (!confirm('この記録を削除しますか？')) return
     await supabase.from('session_tags').delete().eq('session_id', id)
     await supabase.from('sessions').delete().eq('id', id)

@@ -6,13 +6,14 @@ import { Modal } from '@/components/ui/Modal'
 import { SubjectIconDisplay } from '@/components/ui/SubjectIconPicker'
 import { fmtTime, fmtDuration, BADGES, XP_PER_MIN, RANKS, getRank, XP_PER_LEVEL, Subject, Material, Session } from '@/types'
 import { TimerSkeleton } from '@/components/ui/Skeleton'
+import { getDemoSessions } from '@/lib/demo-data'
 
 type TimerMode = 'normal' | 'pomodoro'
 type TimerState = 'idle' | 'subject' | 'material' | 'running' | 'paused' | 'saving' | 'pomo_break'
 type DisplayMode = 'timer' | 'clock'
 
 export default function TimerTab() {
-  const { subjects, refreshSubjects, userId, userMeta, profile, goal, theme, settings, showToast, refreshProfile, refreshBadges, badges } = useApp()
+  const { subjects, refreshSubjects, userId, userMeta, profile, goal, theme, settings, showToast, refreshProfile, refreshBadges, badges, isDemo } = useApp()
   const supabase = createClient()
 
   const [mode, setMode] = useState<TimerMode>('normal')
@@ -134,6 +135,17 @@ export default function TimerTab() {
     const today = new Date().toLocaleDateString('en-CA')
     const ws = new Date(); ws.setDate(ws.getDate() - ws.getDay()); ws.setHours(0,0,0,0)
     const dates = Array.from({ length: 7 }, (_, i) => { const d = new Date(ws); d.setDate(d.getDate() + i); return d.toISOString().split('T')[0] })
+
+    if (isDemo) {
+      const all = getDemoSessions()
+      setTodaySessions(all.filter(s => s.date === today))
+      const w = [0,0,0,0,0,0,0]
+      all.forEach(s => { const idx = dates.indexOf(s.date); if (idx >= 0) w[idx] += s.duration })
+      setWeekData(w)
+      setIdleLoading(false)
+      return
+    }
+
     Promise.all([
       supabase.from('sessions').select('*').eq('user_id', userId).eq('date', today),
       supabase.from('sessions').select('date, duration').eq('user_id', userId).gte('date', dates[0]).lte('date', dates[6]),
@@ -144,7 +156,7 @@ export default function TimerTab() {
       setWeekData(w)
       setIdleLoading(false)
     })
-  }, [userId, state]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [userId, state, isDemo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Past tag suggestions
   useEffect(() => {
@@ -214,6 +226,11 @@ export default function TimerTab() {
     setSaving(true)
     const totalSec = mode === 'pomodoro' ? (pomoElapsed + (pomoPhase === 'work' ? elapsed % (pomoWork*60) : 0)) : elapsed
     if (totalSec < 10) { showToast('10秒未満は記録できません'); setSaving(false); return }
+    if (isDemo) {
+      showToast('デモモードです。データは保存されません')
+      setSaving(false); setShowSave(false); setMemo(''); setSessionUrl(''); setTags([]); setTagInput(''); setElapsed(0); setState('idle'); setSelectedSubject(null); setSelectedMaterial(null)
+      return
+    }
 
     const startDate = new Date(startTimeRef.current)
     const date = startDate.toLocaleDateString('en-CA')

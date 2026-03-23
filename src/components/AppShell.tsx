@@ -28,7 +28,7 @@ const TAB_TITLES: Record<Tab, string> = {
 }
 
 export default function AppShell() {
-  const { theme, profile } = useApp()
+  const { theme, profile, isDemo } = useApp()
   const [activeTab, setActiveTab] = useState<Tab>('timer')
 
   return (
@@ -53,6 +53,7 @@ export default function AppShell() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 22 }}>📚</span>
           <span style={{ fontSize: 17, fontWeight: 800, color: theme.text }}>{TAB_TITLES[activeTab]}</span>
+          {isDemo && <span style={{ fontSize: 10, fontWeight: 600, color: theme.accent, background: theme.accentLight, borderRadius: 8, padding: '2px 6px' }}>DEMO</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{

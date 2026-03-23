@@ -1,7 +1,10 @@
 'use client'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
+  const router = useRouter()
+
   const handleLogin = async () => {
     const supabase = createClient()
     await supabase.auth.signInWithOAuth({
@@ -10,6 +13,10 @@ export default function LoginPage() {
         redirectTo: `${window.location.origin}/auth/callback`,
       },
     })
+  }
+
+  const handleDemo = () => {
+    router.push('/timer?demo=1')
   }
 
   return (
@@ -40,6 +47,16 @@ export default function LoginPage() {
         </svg>
         Googleでログイン
       </button>
+      <div style={{ marginTop: 20, textAlign: 'center' }}>
+        <p style={{ fontSize: 12, color: '#9A9A94', marginBottom: 8 }}>まずは試してみる</p>
+        <button onClick={handleDemo} style={{
+          padding: '10px 24px', borderRadius: 14, border: '1px solid #E2E1DC',
+          background: 'transparent', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          color: '#6B6B65',
+        }}>
+          🎮 デモで体験
+        </button>
+      </div>
     </div>
   )
 }

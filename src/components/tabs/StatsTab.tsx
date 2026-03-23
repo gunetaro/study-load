@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { fmtDuration, Session } from '@/types'
 import { StatsSkeleton } from '@/components/ui/Skeleton'
+import { getDemoSessions } from '@/lib/demo-data'
 
 type Tab = 'total' | 'today' | 'week' | 'month' | 'subject'
 
@@ -17,7 +18,7 @@ function getWeekStart(date: Date) {
 function ds(d: Date) { return d.toISOString().split('T')[0] }
 
 export default function StatsTab() {
-  const { userId, theme, subjects, goal } = useApp()
+  const { userId, theme, subjects, goal, isDemo } = useApp()
   const supabase = createClient()
 
   const [sessions, setSessions] = useState<Session[]>([])
@@ -28,11 +29,12 @@ export default function StatsTab() {
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
+    if (isDemo) { setSessions(getDemoSessions()); setLoading(false); return }
     const { data } = await supabase
       .from('sessions').select('*, session_tags(*)').eq('user_id', userId).order('created_at', { ascending: false })
     setSessions(data || [])
     setLoading(false)
-  }, [userId, supabase])
+  }, [userId, supabase, isDemo])
 
   useEffect(() => { loadSessions() }, [loadSessions])
 

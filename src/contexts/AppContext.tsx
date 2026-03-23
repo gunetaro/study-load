@@ -2,46 +2,41 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Theme, ThemeColors, THEMES, Subject, UserSettings, Profile, BadgeAward, Goal } from '@/types'
+import { demoProfile, demoSubjects, demoGoal, demoBadges, demoSettings, demoUserMeta } from '@/lib/demo-data'
 
 interface AppContextValue {
-  // Auth
   userId: string | null
+  isDemo: boolean
   userMeta: Record<string, any> | null
   profile: Profile | null
   refreshProfile: () => Promise<void>
-  // Subjects
   subjects: Subject[]
   refreshSubjects: () => Promise<void>
-  // Settings / Theme
   settings: UserSettings | null
   theme: ThemeColors
   themeName: Theme
   setThemeName: (t: Theme) => void
   saveSettings: (s: Partial<UserSettings>) => Promise<void>
-  // Goals
   goal: Goal | null
   refreshGoal: () => Promise<void>
-  // Badges
   badges: BadgeAward[]
   refreshBadges: () => Promise<void>
-  // Toast
   toast: string | null
   showToast: (msg: string) => void
-  // Level up
   levelUpInfo: { level: number; rank: string } | null
   clearLevelUp: () => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
 
-export function AppProvider({ children, userId }: { children: React.ReactNode; userId: string }) {
+export function AppProvider({ children, userId, isDemo = false }: { children: React.ReactNode; userId: string; isDemo?: boolean }) {
   const supabase = createClient()
-  const [userMeta, setUserMeta] = useState<Record<string, any> | null>(null)
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [subjects, setSubjects] = useState<Subject[]>([])
-  const [settings, setSettings] = useState<UserSettings | null>(null)
-  const [goal, setGoal] = useState<Goal | null>(null)
-  const [badges, setBadges] = useState<BadgeAward[]>([])
+  const [userMeta, setUserMeta] = useState<Record<string, any> | null>(isDemo ? demoUserMeta : null)
+  const [profile, setProfile] = useState<Profile | null>(isDemo ? demoProfile : null)
+  const [subjects, setSubjects] = useState<Subject[]>(isDemo ? demoSubjects : [])
+  const [settings, setSettings] = useState<UserSettings | null>(isDemo ? demoSettings : null)
+  const [goal, setGoal] = useState<Goal | null>(isDemo ? demoGoal : null)
+  const [badges, setBadges] = useState<BadgeAward[]>(isDemo ? demoBadges : [])
   const [toast, setToast] = useState<string | null>(null)
   const [levelUpInfo, setLevelUpInfo] = useState<{ level: number; rank: string } | null>(null)
 
@@ -49,31 +44,37 @@ export function AppProvider({ children, userId }: { children: React.ReactNode; u
   const theme: ThemeColors = { ...THEMES[themeName], ...(settings?.custom_colors || {}) }
 
   const refreshProfile = useCallback(async () => {
+    if (isDemo) return
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
     if (data) setProfile(data)
-  }, [userId, supabase])
+  }, [userId, supabase, isDemo])
 
   const refreshSubjects = useCallback(async () => {
+    if (isDemo) return
     const { data } = await supabase.from('subjects').select('*').eq('user_id', userId).order('sort_order')
     setSubjects(data || [])
-  }, [userId, supabase])
+  }, [userId, supabase, isDemo])
 
   const refreshSettings = useCallback(async () => {
+    if (isDemo) return
     const { data } = await supabase.from('user_settings').select('*').eq('user_id', userId).single()
     if (data) setSettings(data)
-  }, [userId, supabase])
+  }, [userId, supabase, isDemo])
 
   const refreshGoal = useCallback(async () => {
+    if (isDemo) return
     const { data } = await supabase.from('goals').select('*').eq('user_id', userId).single()
     if (data) setGoal(data)
-  }, [userId, supabase])
+  }, [userId, supabase, isDemo])
 
   const refreshBadges = useCallback(async () => {
+    if (isDemo) return
     const { data } = await supabase.from('badge_awards').select('*').eq('user_id', userId)
     setBadges(data || [])
-  }, [userId, supabase])
+  }, [userId, supabase, isDemo])
 
   useEffect(() => {
+    if (isDemo) return
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user?.user_metadata) setUserMeta(user.user_metadata)
     })
@@ -82,13 +83,15 @@ export function AppProvider({ children, userId }: { children: React.ReactNode; u
     refreshSettings()
     refreshGoal()
     refreshBadges()
-  }, [refreshProfile, refreshSubjects, refreshSettings, refreshGoal, refreshBadges, supabase])
+  }, [refreshProfile, refreshSubjects, refreshSettings, refreshGoal, refreshBadges, supabase, isDemo])
 
   const setThemeName = (t: Theme) => {
+    if (isDemo) { setSettings(s => s ? { ...s, theme_name: t, custom_colors: {} } : s); return }
     saveSettings({ theme_name: t })
   }
 
   const saveSettings = async (patch: Partial<UserSettings>) => {
+    if (isDemo) { setSettings(s => s ? { ...s, ...patch } as UserSettings : s); return }
     const merged = { ...settings, ...patch, user_id: userId }
     const { data } = await supabase
       .from('user_settings')
@@ -108,6 +111,7 @@ export function AppProvider({ children, userId }: { children: React.ReactNode; u
   return (
     <AppContext.Provider value={{
       userId,
+      isDemo,
       userMeta,
       profile,
       refreshProfile,

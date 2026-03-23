@@ -576,7 +576,7 @@ export default function ProfileTab() {
             }}>
               <div style={{ width: 24, height: 24, borderRadius: '50%', background: THEMES[t].accent, margin: '0 auto 4px' }} />
               <div style={{ fontSize: 10, fontWeight: 600, color: THEMES[t].text }}>
-                {t === 'minimal' ? 'シンプル' : t === 'pop' ? 'ポップ' : t === 'midnight' ? 'ミッドナイト' : 'パステル'}
+                {t === 'minimal' ? 'ライト' : t === 'pop' ? 'ポップ' : t === 'midnight' ? 'ダーク' : 'パステル'}
               </div>
             </button>
           ))}
@@ -618,7 +618,35 @@ export default function ProfileTab() {
       {/* ── Customize Colors Modal ── */}
       <Modal open={customModal} onClose={() => setCustomModal(false)} title="カスタマイズ">
         <div>
-          <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 12 }}>テーマをベースに各色を個別変更できます</div>
+          {/* Theme presets */}
+          <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 8 }}>テーマを選択</div>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            {(['minimal','midnight','pop','pastel'] as Theme[]).map(t => {
+              const T = THEMES[t]
+              const selected = themeName === t
+              const label = t === 'minimal' ? 'ライト' : t === 'midnight' ? 'ダーク' : t === 'pop' ? 'ポップ' : 'パステル'
+              return (
+                <button key={t} onClick={() => { setThemeName(t); setCustomColors({}) }} style={{
+                  flex: 1, padding: '10px 4px', borderRadius: 12, cursor: 'pointer', textAlign: 'center',
+                  border: `2px solid ${selected ? theme.accent : theme.border}`,
+                  background: T.card, position: 'relative',
+                }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: T.accent, margin: '0 auto 4px', border: `2px solid ${T.bg}` }} />
+                  <div style={{ fontSize: 10, fontWeight: 600, color: T.text }}>{label}</div>
+                  {selected && (
+                    <div style={{ position: 'absolute', top: 4, right: 4, fontSize: 10, color: theme.accent }}>✓</div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Separator */}
+          <div style={{ height: 1, background: theme.border, marginBottom: 16 }} />
+
+          {/* Color customization */}
+          <div style={{ fontSize: 13, fontWeight: 700, color: theme.text, marginBottom: 4 }}>カラーをカスタマイズ</div>
+          <div style={{ fontSize: 11, color: theme.textSub, marginBottom: 12 }}>テーマをベースに各色を個別変更できます</div>
           {([
             { key: 'bg', label: '背景色' },
             { key: 'card', label: 'カード色' },
@@ -632,7 +660,7 @@ export default function ProfileTab() {
               <div
                 onClick={() => colorInputRefs.current[key]?.click()}
                 style={{
-                  width: 28, height: 28, borderRadius: 8, cursor: 'pointer',
+                  width: 28, height: 28, borderRadius: '50%', cursor: 'pointer',
                   background: customColors[key] || THEMES[themeName][key],
                   border: `2px solid ${theme.border}`,
                 }}

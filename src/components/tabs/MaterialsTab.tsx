@@ -158,13 +158,10 @@ export default function MaterialsTab() {
           {(() => {
             const av = profile?.avatar_url || userMeta?.avatar_url || ''
             const ini = (profile?.name || userMeta?.full_name || 'U')[0]
-            const lv = Math.floor((profile?.xp || 0) / 100) + 1
-            const rk = getRank(lv)
             return <>
               {av ? <img src={av} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', marginRight: 8 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
                 : <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: theme.accent, marginRight: 8 }}>{ini}</div>}
               <span style={{ fontSize: 16, fontWeight: 700, color: theme.text, flex: 1 }}>教科・教材</span>
-              <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSub, marginRight: 12 }}>Lv.{lv} {rk.emoji}</span>
             </>
           })()}
         </div>

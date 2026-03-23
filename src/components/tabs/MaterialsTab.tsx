@@ -20,6 +20,7 @@ export default function MaterialsTab() {
   const { subjects, refreshSubjects, userId, theme, themeName, showToast } = useApp()
   const supabase = createClient()
   const colorInputRef = useRef<HTMLInputElement>(null)
+  const presetColors = THEME_PRESET_COLORS[themeName] || THEME_PRESET_COLORS.minimal
 
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null)
   const [materials, setMaterials] = useState<Record<string, Material[]>>({})
@@ -59,8 +60,7 @@ export default function MaterialsTab() {
 
   // Subject CRUD
   const openAddSubject = () => {
-    const presets = THEME_PRESET_COLORS[themeName] || THEME_PRESET_COLORS.minimal
-    setEditSubject({ name: '', icon: EMOJIS[0], color: presets[0] })
+    setEditSubject({ name: '', icon: EMOJIS[0], color: presetColors[0] })
     setSubjectModal(true)
   }
 
@@ -239,49 +239,49 @@ export default function MaterialsTab() {
             />
           </div>
 
-          {(() => {
-            const presetColors = THEME_PRESET_COLORS[themeName] || THEME_PRESET_COLORS.minimal
-            const isCustom = !presetColors.includes(editSubject.color)
-            return (
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>カラー</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
-                  {presetColors.map(color => (
-                    <button key={color} onClick={() => setEditSubject(p => ({ ...p, color }))} style={{
-                      width: 32, height: 32, borderRadius: '50%', background: color,
-                      border: `3px solid ${editSubject.color === color ? theme.text : 'transparent'}`,
-                      cursor: 'pointer', flexShrink: 0,
-                    }} />
-                  ))}
-                  <button
-                    onClick={() => colorInputRef.current?.click()}
-                    title="カスタムカラー"
-                    style={{
-                      width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                      border: `3px solid ${isCustom ? theme.accent : theme.border}`,
-                      background: theme.cardAlt, cursor: 'pointer', fontSize: 16,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    🎨
-                  </button>
-                  <input
-                    ref={colorInputRef}
-                    type="color"
-                    value={editSubject.color}
-                    onChange={e => setEditSubject(p => ({ ...p, color: e.target.value }))}
-                    style={{ display: 'none' }}
-                  />
-                  {isCustom && (
-                    <div style={{
-                      width: 32, height: 32, borderRadius: '50%', background: editSubject.color,
-                      border: `3px solid ${theme.accent}`, flexShrink: 0,
-                    }} />
-                  )}
-                </div>
-              </div>
-            )
-          })()}
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>カラー</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+              {presetColors.map(color => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setEditSubject(p => ({ ...p, color }))}
+                  style={{
+                    width: 32, height: 32, borderRadius: '50%', background: color, padding: 0,
+                    border: `3px solid ${editSubject.color === color ? theme.text : 'transparent'}`,
+                    cursor: 'pointer', flexShrink: 0, outline: 'none',
+                  }}
+                />
+              ))}
+              <button
+                type="button"
+                onClick={() => colorInputRef.current?.click()}
+                title="カスタムカラー"
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0, padding: 0,
+                  border: `3px solid ${!presetColors.includes(editSubject.color) ? theme.accent : theme.border}`,
+                  background: theme.cardAlt, cursor: 'pointer', fontSize: 16,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                🎨
+              </button>
+              <input
+                ref={colorInputRef}
+                type="color"
+                value={editSubject.color}
+                onChange={e => setEditSubject(p => ({ ...p, color: e.target.value }))}
+                style={{ display: 'none' }}
+              />
+              {!presetColors.includes(editSubject.color) && (
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', background: editSubject.color,
+                  border: `3px solid ${theme.accent}`, flexShrink: 0,
+                }} />
+              )}
+            </div>
+          </div>
 
           <button onClick={saveSubject} disabled={savingSubject} style={{
             width: '100%', background: theme.accent, color: '#fff',

@@ -62,7 +62,7 @@ export function SubjectIconPicker({ value, userId, onChange, theme }: PickerProp
       {/* タブ切替 */}
       <div style={{ display: 'flex', marginBottom: 12, borderRadius: 10, overflow: 'hidden', border: `1px solid ${theme.border}` }}>
         {(['emoji', 'image'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
+          <button key={t} type="button" onClick={() => setTab(t)} style={{
             flex: 1, padding: '8px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
             background: tab === t ? theme.accent : theme.card,
             color: tab === t ? '#fff' : theme.textSub,
@@ -75,11 +75,11 @@ export function SubjectIconPicker({ value, userId, onChange, theme }: PickerProp
       {tab === 'emoji' && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
           {EMOJIS.map(emoji => (
-            <button key={emoji} onClick={() => onChange(emoji)} style={{
+            <button key={emoji} type="button" onClick={() => onChange(emoji)} style={{
               width: 40, height: 40, borderRadius: 10,
               border: `2px solid ${value === emoji ? theme.accent : theme.border}`,
               background: value === emoji ? theme.accentLight : theme.card,
-              cursor: 'pointer', fontSize: 20,
+              cursor: 'pointer', fontSize: 20, padding: 0,
             }}>
               {emoji}
             </button>

@@ -41,6 +41,8 @@ export default function TimerTab() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const startTimeRef = useRef<number>(0)
   const hiddenStartRef = useRef<number>(0)
+  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [controlsVisible, setControlsVisible] = useState(true)
 
   // Visibility API (スマホ封印)
   useEffect(() => {
@@ -101,6 +103,21 @@ export default function TimerTab() {
     const id = setInterval(() => setClockTime(new Date()), 1000)
     return () => clearInterval(id)
   }, [isFullscreen])
+
+  // Auto-hide fullscreen controls after 4s
+  useEffect(() => {
+    if (!isFullscreen || state === 'pomo_break') return
+    setControlsVisible(true)
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 4000)
+    return () => { if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current) }
+  }, [isFullscreen, state])
+
+  const handleScreenTap = () => {
+    setControlsVisible(true)
+    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current)
+    controlsTimerRef.current = setTimeout(() => setControlsVisible(false), 4000)
+  }
 
   // Past tag suggestions
   useEffect(() => {
@@ -389,128 +406,129 @@ export default function TimerTab() {
     )
 
     return (
-      <div style={{
-        position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh',
-        zIndex: 200,
-        background: theme.bg,
-        display: 'flex', flexDirection: 'column',
-        fontFamily: "'DM Sans', 'Hiragino Sans', 'Noto Sans JP', sans-serif",
-      }}>
+      <div
+        onClick={handleScreenTap}
+        style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh',
+          zIndex: 200, background: theme.bg, overflow: 'hidden',
+          userSelect: 'none', WebkitUserSelect: 'none',
+          display: 'flex', flexDirection: 'column',
+          fontFamily: "'DM Sans', 'Hiragino Sans', 'Noto Sans JP', sans-serif",
+        }}
+      >
+        {/* 教科カラー: 上部の細い線 */}
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: subjectColor, zIndex: 2 }} />
+
         {/* 教科カラーの薄いオーバーレイ */}
-        <div style={{
-          position: 'absolute', inset: 0, background: subjectColor, opacity: 0.07, pointerEvents: 'none',
-        }} />
+        <div style={{ position: 'absolute', inset: 0, background: subjectColor, opacity: 0.08, pointerEvents: 'none' }} />
 
-        {/* 中央コンテンツ */}
-        <div style={{
-          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          position: 'relative', zIndex: 1, padding: '16px 32px', textAlign: 'center', gap: 0,
-        }}>
-
-          {/* 教科情報 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-            <SubjectIconDisplay icon={selectedSubject?.icon || '📚'} size={30} />
-            <span style={{ fontSize: 20, fontWeight: 700, color: theme.text }}>{selectedSubject?.name}</span>
-          </div>
-          {selectedMaterial && (
-            <div style={{ fontSize: 13, color: theme.textSub, marginBottom: 12 }}>📖 {selectedMaterial.name}</div>
-          )}
-
+        {/* 中央: タイマー数字のみ */}
+        <div
+          onClick={(e) => { e.stopPropagation(); setDisplayMode(d => d === 'timer' ? 'clock' : 'timer') }}
+          style={{
+            flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            position: 'relative', zIndex: 1, cursor: 'pointer',
+          }}
+        >
           {state === 'pomo_break' ? (
-            /* ── ポモドーロ休憩 ── */
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               <div style={{ fontSize: 52 }}>☕</div>
               <div style={{ fontSize: 22, fontWeight: 700, color: theme.text }}>休憩タイム</div>
               <div style={{ fontSize: 14, color: theme.textSub }}>{pomoRound}/{pomoRounds} ラウンド完了</div>
-              <div style={{ fontSize: 'clamp(56px, 14vw, 80px)', fontWeight: 900, color: subjectColor, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, marginTop: 8 }}>
+              <div style={{ fontSize: 'clamp(56px, 14vw, 80px)', fontWeight: 700, color: subjectColor, fontVariantNumeric: 'tabular-nums', letterSpacing: 4, lineHeight: 1, marginTop: 8 }}>
                 {fmtTime(pomoRemaining)}
               </div>
               <div style={{ fontSize: 13, color: theme.textSub, marginTop: 4 }}>累計: {fmtDuration(pomoElapsed)}</div>
             </div>
           ) : (
-            /* ── タイマー / 時計 ── */
-            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
+            <>
               {mode === 'pomodoro' && (
-                <div style={{ fontSize: 12, color: subjectColor, marginBottom: 16, fontWeight: 600 }}>
-                  {pomoPhase === 'work' ? `⏰ 作業 ${pomoRound}/${pomoRounds}` : '☕ 休憩'}
+                <div style={{ fontSize: 12, color: subjectColor, marginBottom: 16, fontWeight: 600, opacity: 0.7 }}>
+                  {pomoPhase === 'work' ? `${pomoRound}/${pomoRounds}` : '☕'}
                 </div>
               )}
 
-              {/* モード切替ボタン */}
-              <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 20 }}>
-                {(['timer', 'clock'] as const).map(m => (
-                  <button key={m} onClick={() => setDisplayMode(m)} style={{
-                    padding: '6px 18px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
-                    background: displayMode === m ? subjectColor : theme.cardAlt,
-                    color: displayMode === m ? '#fff' : theme.textSub,
-                  }}>
-                    {m === 'timer' ? 'タイマー' : '時計'}
-                  </button>
-                ))}
-              </div>
-
               {displayMode === 'timer' ? (
-                <div style={{ fontSize: 'clamp(60px, 15vw, 88px)', fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -3, lineHeight: 1 }}>
+                <div style={{
+                  fontSize: 'clamp(80px, 22vw, 120px)', fontWeight: 700, color: theme.text,
+                  fontVariantNumeric: 'tabular-nums', letterSpacing: 4, lineHeight: 1,
+                  transition: 'opacity 0.3s',
+                  width: '80%', textAlign: 'center',
+                }}>
                   {mode === 'pomodoro' ? fmtTime(pomoRemaining) : fmtTime(elapsed)}
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 'clamp(52px, 13vw, 72px)', fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'baseline', justifyContent: 'center',
+                  transition: 'opacity 0.3s',
+                }}>
+                  <span style={{
+                    fontSize: 'clamp(72px, 20vw, 110px)', fontWeight: 700, color: theme.text,
+                    fontVariantNumeric: 'tabular-nums', letterSpacing: 4, lineHeight: 1,
+                  }}>
                     {hh}:{mm}
                   </span>
-                  <span style={{ fontSize: 'clamp(28px, 7vw, 40px)', fontWeight: 400, color: theme.textSub, fontVariantNumeric: 'tabular-nums', letterSpacing: -1 }}>
+                  <span style={{
+                    fontSize: 'clamp(32px, 8vw, 48px)', fontWeight: 400, color: theme.textSub,
+                    fontVariantNumeric: 'tabular-nums', letterSpacing: 2,
+                  }}>
                     :{ss}
                   </span>
                 </div>
               )}
 
               {mode === 'pomodoro' && (
-                <div style={{ fontSize: 14, color: theme.textSub, marginTop: 16 }}>
-                  累計: {fmtDuration(pomoElapsed + elapsed)}
+                <div style={{ fontSize: 13, color: theme.textSub, marginTop: 20, opacity: 0.6 }}>
+                  累計 {fmtDuration(pomoElapsed + elapsed)}
                 </div>
               )}
-            </div>
+            </>
           )}
         </div>
 
-        {/* ── 下部ボタン ── */}
+        {/* ── 下部ボタン（ミニマル丸ボタン、フェードイン/アウト） ── */}
         <div style={{
-          position: 'relative', zIndex: 1,
-          padding: '20px 32px',
-          paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))',
-          display: 'flex', gap: 16, justifyContent: 'center',
+          position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 3,
+          padding: '24px 40px',
+          paddingBottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          opacity: controlsVisible ? 0.6 : 0.15,
+          transition: 'opacity 0.5s ease',
+          pointerEvents: 'auto',
         }}>
           {state === 'pomo_break' ? (
             <>
-              <button onClick={handleBreakResume} style={{
-                flex: 1, padding: '18px', borderRadius: 16,
+              <button onClick={(e) => { e.stopPropagation(); handleBreakResume() }} style={{
+                flex: 1, padding: '16px', borderRadius: 28,
                 background: subjectColor, color: '#fff', border: 'none',
-                fontWeight: 700, fontSize: 16, cursor: 'pointer',
+                fontWeight: 700, fontSize: 15, cursor: 'pointer', opacity: 0.9,
               }}>
-                次のラウンド開始
+                次のラウンド
               </button>
-              <button onClick={handleStop} style={{
-                padding: '18px 20px', borderRadius: 16,
-                background: theme.cardAlt, color: theme.textSub, border: 'none',
-                fontWeight: 600, fontSize: 14, cursor: 'pointer',
+              <div style={{ width: 16 }} />
+              <button onClick={(e) => { e.stopPropagation(); handleStop() }} style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: theme.danger, border: 'none',
+                fontSize: 22, cursor: 'pointer', color: '#fff',
               }}>
-                終了
+                ⏹
               </button>
             </>
           ) : (
             <>
-              <button onClick={handlePause} style={{
-                width: 72, height: 72, borderRadius: '50%',
+              <button onClick={(e) => { e.stopPropagation(); handlePause() }} style={{
+                width: 56, height: 56, borderRadius: '50%',
                 background: state === 'paused' ? subjectColor : theme.cardAlt,
-                border: `2px solid ${state === 'paused' ? subjectColor : theme.border}`,
-                fontSize: 26, cursor: 'pointer', color: state === 'paused' ? '#fff' : theme.text,
+                border: 'none',
+                fontSize: 22, cursor: 'pointer',
+                color: state === 'paused' ? '#fff' : theme.text,
               }}>
                 {state === 'paused' ? '▶' : '⏸'}
               </button>
-              <button onClick={handleStop} style={{
-                width: 72, height: 72, borderRadius: '50%',
+              <button onClick={(e) => { e.stopPropagation(); handleStop() }} style={{
+                width: 56, height: 56, borderRadius: '50%',
                 background: theme.danger, border: 'none',
-                fontSize: 26, cursor: 'pointer', color: '#fff',
+                fontSize: 22, cursor: 'pointer', color: '#fff',
               }}>
                 ⏹
               </button>
@@ -545,8 +563,6 @@ export default function TimerTab() {
             {/* タグ入力 */}
             <div style={{ marginBottom: 20 }}>
               <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>タグ</label>
-
-              {/* 確定済みタグ */}
               {tags.length > 0 && (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
                   {tags.map(tag => (
@@ -565,8 +581,6 @@ export default function TimerTab() {
                   ))}
                 </div>
               )}
-
-              {/* 入力欄 + サジェスト */}
               <div style={{ position: 'relative' }}>
                 <input
                   value={tagInput}

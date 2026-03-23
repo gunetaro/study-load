@@ -242,24 +242,24 @@ export default function ProfileTab() {
     sf(14); ctx.fillStyle = T.textSub
     ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + PX, SY + PY + 14 + 4 + 30 + 18)
 
-    y = SY + SH + 16  // gap cards→records (16px)
+    y = SY + SH + 8  // gap cards→records (8px, was 16) ⑨
 
     // ── Today's records section ──
-    sf(18, 700); ctx.fillStyle = T.accent
+    sf(20, 700); ctx.fillStyle = T.accent  // ④ 20px bold
     ctx.fillText('今日の記録', L, y + 18)
     ctx.fillStyle = T.border
     ctx.fillRect(L, y + 24, CW, 1)
-    y += 30
+    y += 26
 
     if (totalSec === 0) {
       sf(16); ctx.fillStyle = T.textSub
       ctx.fillText('本日の学習記録がありません', L, y + 40)
     } else {
-      y += 10  // gap heading→total (10px, tight parent-child)
+      y += 8  // ④ heading→total 8px fixed
 
       const totalStr = fmt(totalSec)
-      sf(44, 600)
-      ctx.globalAlpha = 0.8; ctx.fillStyle = T.accent
+      sf(44, 600)  // ③ semibold
+      ctx.globalAlpha = 0.75; ctx.fillStyle = T.accent  // ③ 0.75 opacity
       ctx.fillText(totalStr, L, y + 38)
       ctx.globalAlpha = 1.0
       const totalW = ctx.measureText(totalStr).width
@@ -270,58 +270,61 @@ export default function ProfileTab() {
       // "合計" label
       sf(12); ctx.fillStyle = T.textSub
       ctx.fillText('合計', L, y + 12)
-      y += 24 + 12  // label + gap to subject bars
+      y += 24 + 6  // ⑤ label + gap to subjects (was 12, now 6)
 
-      // Subject bars — indented 20px, proportional to totalSec
-      const INDENT = 20
-      const SL = L + INDENT  // subject list left edge
-      const timeX = R  // fixed right-align x for all time texts
-      const BAR_MAX = Math.round((R - SL) * 0.75)
+      // Subject bars — indented, proportional to totalSec
+      const INDENT = 16  // ① 80% of 20 = 16
+      const SL = L + INDENT
+      const timeX = R - 10  // ⑦ time right edge, 10px from bar area right
+      const BAR_RIGHT = R - 16  // ② 16px from image right edge
+      const BAR_MAX = BAR_RIGHT - SL  // ② full width minus indent+margin
+      const ROW_H = 46  // ⑥ fixed row height
+
       topSubj.forEach((s, i) => {
         const isTop = i < 2
-        const barH = isTop ? 10 : 7
+        const barH = isTop ? 10 : 8  // ⑧ lower: 8px
 
-        // Text: top 2 = 14px semibold, 3+ = 13px normal sub-color dimmed
+        // Text: top 2 = 14px semibold, 3+ = 13px dimmed
         if (isTop) {
           sf(14, 600); ctx.fillStyle = T.text
         } else {
-          ctx.globalAlpha = 0.6; sf(13); ctx.fillStyle = T.textSub
+          ctx.globalAlpha = 0.45; sf(13); ctx.fillStyle = T.textSub  // ⑧ 0.45 opacity
         }
-        ctx.fillText(s.name, SL, y + 14)
+        ctx.fillText(s.name, SL, y + 14)  // ⑥ all names at same SL
         ctx.textAlign = 'right'
         if (isTop) {
           sf(14, 600); ctx.fillStyle = T.text
         } else {
           sf(13); ctx.fillStyle = T.textSub
         }
-        ctx.fillText(fmt(s.sec), timeX, y + 14)
+        ctx.fillText(fmt(s.sec), timeX, y + 14)  // ⑦ all times at same timeX
         ctx.textAlign = 'left'
         if (!isTop) ctx.globalAlpha = 1.0
 
-        // Bar — 4px below text, aligned with subject name
+        // Bar — 4px below text ⑥
         const barY = y + 18
         ctx.fillStyle = T.border
-        roundRect(ctx, SL, barY, BAR_MAX, barH, barH / 2); ctx.fill()
-        // Bar fill — proportional to total time
+        roundRect(ctx, SL, barY, BAR_MAX, barH, barH / 2); ctx.fill()  // ⑥ all bars at SL
         const ratio = s.sec / totalSec
         const barW = Math.max(Math.round(BAR_MAX * ratio), 20)
-        ctx.globalAlpha = isTop ? 0.9 : 0.3
+        ctx.globalAlpha = isTop ? 0.9 : 0.2  // ⑧ lower: 0.2
         ctx.fillStyle = s.color
         roundRect(ctx, SL, barY, barW, barH, barH / 2); ctx.fill()
         ctx.globalAlpha = 1.0
 
-        y += (isTop ? 28 : 25) + 16  // row height + gap between subjects (+2px)
+        y += ROW_H  // ⑥ fixed 46px per row
       })
 
       if (restSubj.length > 0) {
-        ctx.globalAlpha = 0.6; sf(13); ctx.fillStyle = T.textSub
+        ctx.globalAlpha = 0.45; sf(13); ctx.fillStyle = T.textSub
         ctx.fillText(`他${restSubj.length}教科  ${fmt(restSec)}`, SL, y + 14)
         ctx.globalAlpha = 1.0
+        y += 20
       }
     }
 
-    // ── Footer: "#StudyLoad" — 30px below content, min 20px from bottom ──
-    const footerY = Math.min(y + 30, 630 - 20)
+    // ── Footer: "#StudyLoad" fixed 24px from bottom, min 16px below content ⑩ ──
+    const footerY = Math.max(y + 16, 630 - 24)
     sf(16, 600); ctx.fillStyle = T.accent
     ctx.textAlign = 'center'
     ctx.fillText('#StudyLoad', 600, footerY)

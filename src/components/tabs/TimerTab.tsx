@@ -21,7 +21,9 @@ export default function TimerTab() {
   const [materials, setMaterials] = useState<Material[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [memo, setMemo] = useState('')
-  const [tags, setTags] = useState('')
+  const [tags, setTags] = useState<string[]>([])
+  const [tagInput, setTagInput] = useState('')
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
   const [showSave, setShowSave] = useState(false)
   const [saving, setSaving] = useState(false)
   const [displayMode, setDisplayMode] = useState<DisplayMode>('timer')
@@ -100,6 +102,17 @@ export default function TimerTab() {
     return () => clearInterval(id)
   }, [isFullscreen])
 
+  // Past tag suggestions
+  useEffect(() => {
+    if (!showSave || !userId) return
+    supabase.from('session_tags').select('tag').then(({ data }) => {
+      if (data) {
+        const unique = [...new Set(data.map(d => d.tag))].sort()
+        setTagSuggestions(unique)
+      }
+    })
+  }, [showSave, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const loadMaterials = async (subjectId: string) => {
     const { data } = await supabase
       .from('materials')
@@ -137,6 +150,21 @@ export default function TimerTab() {
     setShowSave(true)
   }
 
+  const confirmTag = () => {
+    const t = tagInput.trim().replace(/^#+/, '')
+    if (t && !tags.includes(t)) setTags(prev => [...prev, t])
+    setTagInput('')
+  }
+
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault()
+      confirmTag()
+    } else if (e.key === 'Backspace' && tagInput === '' && tags.length > 0) {
+      setTags(prev => prev.slice(0, -1))
+    }
+  }
+
   const handleSave = async () => {
     if (!selectedSubject) return
     setSaving(true)
@@ -166,16 +194,12 @@ export default function TimerTab() {
     }
 
     // Tags
-    if (tags.trim() && session) {
-      const tagList = tags.split(/[,、\s]+/).filter(Boolean).map(tag => ({
-        session_id: session.id,
-        tag: tag.trim(),
-      }))
-      if (tagList.length > 0) {
-        const { error: tagError } = await supabase.from('session_tags').insert(tagList)
-        if (tagError) {
-          console.error('[session_tags] insert error:', tagError.code, tagError.message, tagError.details, tagError.hint)
-        }
+    const allTags = tagInput.trim() ? [...tags, tagInput.trim().replace(/^#+/, '')] : tags
+    if (allTags.length > 0 && session) {
+      const tagList = allTags.map(tag => ({ session_id: session.id, tag }))
+      const { error: tagError } = await supabase.from('session_tags').insert(tagList)
+      if (tagError) {
+        console.error('[session_tags] insert error:', tagError.code, tagError.message)
       }
     }
 
@@ -196,7 +220,8 @@ export default function TimerTab() {
     setSaving(false)
     setShowSave(false)
     setMemo('')
-    setTags('')
+    setTags([])
+    setTagInput('')
     setElapsed(0)
     setState('idle')
     setSelectedSubject(null)
@@ -247,7 +272,8 @@ export default function TimerTab() {
     setSelectedSubject(null)
     setSelectedMaterial(null)
     setMemo('')
-    setTags('')
+    setTags([])
+    setTagInput('')
   }
 
   const handleBreakResume = () => {
@@ -355,12 +381,18 @@ export default function TimerTab() {
   // ── フルスクリーン（running / paused / pomo_break）──
   if (isFullscreen) {
     const subjectColor = selectedSubject?.color || theme.accent
-    const clockHHMM = `${String(clockTime.getHours()).padStart(2,'0')}:${String(clockTime.getMinutes()).padStart(2,'0')}`
-    const clockSS = `:${String(clockTime.getSeconds()).padStart(2,'0')}`
+    const hh = String(clockTime.getHours()).padStart(2,'0')
+    const mm = String(clockTime.getMinutes()).padStart(2,'0')
+    const ss = String(clockTime.getSeconds()).padStart(2,'0')
+
+    const filteredSuggestions = tagSuggestions.filter(s =>
+      s.includes(tagInput.replace(/^#+/, '')) && !tags.includes(s)
+    )
 
     return (
       <div style={{
-        position: 'fixed', inset: 0, zIndex: 200,
+        position: 'fixed', top: 0, left: 0, width: '100%', height: '100dvh',
+        zIndex: 200,
         background: theme.bg,
         display: 'flex', flexDirection: 'column',
         fontFamily: "'DM Sans', 'Hiragino Sans', 'Noto Sans JP', sans-serif",
@@ -371,33 +403,36 @@ export default function TimerTab() {
         }} />
 
         {/* 中央コンテンツ */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', zIndex: 1, padding: '0 24px', textAlign: 'center' }}>
+        <div style={{
+          flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          position: 'relative', zIndex: 1, padding: '16px 32px', textAlign: 'center', gap: 0,
+        }}>
 
           {/* 教科情報 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <SubjectIconDisplay icon={selectedSubject?.icon || '📚'} size={28} />
-            <span style={{ fontSize: 18, fontWeight: 700, color: theme.text }}>{selectedSubject?.name}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+            <SubjectIconDisplay icon={selectedSubject?.icon || '📚'} size={30} />
+            <span style={{ fontSize: 20, fontWeight: 700, color: theme.text }}>{selectedSubject?.name}</span>
           </div>
           {selectedMaterial && (
-            <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 8 }}>📖 {selectedMaterial.name}</div>
+            <div style={{ fontSize: 13, color: theme.textSub, marginBottom: 12 }}>📖 {selectedMaterial.name}</div>
           )}
 
           {state === 'pomo_break' ? (
             /* ── ポモドーロ休憩 ── */
-            <div>
-              <div style={{ fontSize: 52, marginBottom: 8 }}>☕</div>
-              <div style={{ fontSize: 22, fontWeight: 700, color: theme.text, marginBottom: 4 }}>休憩タイム</div>
-              <div style={{ fontSize: 14, color: theme.textSub, marginBottom: 20 }}>{pomoRound}/{pomoRounds} ラウンド完了</div>
-              <div style={{ fontSize: 72, fontWeight: 900, color: subjectColor, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+              <div style={{ fontSize: 52 }}>☕</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: theme.text }}>休憩タイム</div>
+              <div style={{ fontSize: 14, color: theme.textSub }}>{pomoRound}/{pomoRounds} ラウンド完了</div>
+              <div style={{ fontSize: 'clamp(56px, 14vw, 80px)', fontWeight: 900, color: subjectColor, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1, marginTop: 8 }}>
                 {fmtTime(pomoRemaining)}
               </div>
-              <div style={{ fontSize: 13, color: theme.textSub, marginTop: 12 }}>累計: {fmtDuration(pomoElapsed)}</div>
+              <div style={{ fontSize: 13, color: theme.textSub, marginTop: 4 }}>累計: {fmtDuration(pomoElapsed)}</div>
             </div>
           ) : (
             /* ── タイマー / 時計 ── */
-            <div style={{ width: '100%' }}>
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0 }}>
               {mode === 'pomodoro' && (
-                <div style={{ fontSize: 12, color: subjectColor, marginBottom: 12, fontWeight: 600 }}>
+                <div style={{ fontSize: 12, color: subjectColor, marginBottom: 16, fontWeight: 600 }}>
                   {pomoPhase === 'work' ? `⏰ 作業 ${pomoRound}/${pomoRounds}` : '☕ 休憩'}
                 </div>
               )}
@@ -406,27 +441,27 @@ export default function TimerTab() {
               <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginBottom: 20 }}>
                 {(['timer', 'clock'] as const).map(m => (
                   <button key={m} onClick={() => setDisplayMode(m)} style={{
-                    padding: '6px 16px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
+                    padding: '6px 18px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none',
                     background: displayMode === m ? subjectColor : theme.cardAlt,
                     color: displayMode === m ? '#fff' : theme.textSub,
                   }}>
-                    {m === 'timer' ? '⏱ タイマー' : '🕐 時計'}
+                    {m === 'timer' ? 'タイマー' : '時計'}
                   </button>
                 ))}
               </div>
 
               {displayMode === 'timer' ? (
-                <div style={{ fontSize: 80, fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -3, lineHeight: 1 }}>
+                <div style={{ fontSize: 'clamp(60px, 15vw, 88px)', fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -3, lineHeight: 1 }}>
                   {mode === 'pomodoro' ? fmtTime(pomoRemaining) : fmtTime(elapsed)}
                 </div>
               ) : (
-                <div>
-                  <div style={{ fontSize: 80, fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -3, lineHeight: 1 }}>
-                    {clockHHMM}
-                  </div>
-                  <div style={{ fontSize: 28, color: theme.textSub, fontVariantNumeric: 'tabular-nums', marginTop: 4, fontWeight: 400 }}>
-                    {clockSS}
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 'clamp(52px, 13vw, 72px)', fontWeight: 900, color: theme.text, fontVariantNumeric: 'tabular-nums', letterSpacing: -2, lineHeight: 1 }}>
+                    {hh}:{mm}
+                  </span>
+                  <span style={{ fontSize: 'clamp(28px, 7vw, 40px)', fontWeight: 400, color: theme.textSub, fontVariantNumeric: 'tabular-nums', letterSpacing: -1 }}>
+                    :{ss}
+                  </span>
                 </div>
               )}
 
@@ -507,19 +542,69 @@ export default function TimerTab() {
                 }}
               />
             </div>
+
+            {/* タグ入力 */}
             <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>タグ（カンマ区切り）</label>
-              <input
-                value={tags}
-                onChange={e => setTags(e.target.value)}
-                placeholder="例: 過去問, 暗記, 復習"
-                style={{
-                  width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
-                  background: theme.cardAlt, color: theme.text, fontSize: 14,
-                  padding: '10px 12px', fontFamily: 'inherit',
-                }}
-              />
+              <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>タグ</label>
+
+              {/* 確定済みタグ */}
+              {tags.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {tags.map(tag => (
+                    <div key={tag} style={{
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      background: theme.accentLight, borderRadius: 20, padding: '4px 10px',
+                    }}>
+                      <span style={{ fontSize: 13, color: theme.accent, fontWeight: 600 }}>#{tag}</span>
+                      <button
+                        onClick={() => setTags(prev => prev.filter(t => t !== tag))}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: theme.textSub, fontSize: 14, padding: 0, lineHeight: 1, display: 'flex' }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 入力欄 + サジェスト */}
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={tagInput}
+                  onChange={e => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="#タグを入力してスペース"
+                  style={{
+                    width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
+                    background: theme.cardAlt, color: theme.text, fontSize: 14,
+                    padding: '10px 12px', fontFamily: 'inherit',
+                  }}
+                />
+                {tagInput.replace(/^#+/, '') && filteredSuggestions.length > 0 && (
+                  <div style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20,
+                    background: theme.card, border: `1px solid ${theme.border}`,
+                    borderRadius: 10, marginTop: 4, maxHeight: 140, overflowY: 'auto',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+                  }}>
+                    {filteredSuggestions.slice(0, 6).map(s => (
+                      <button
+                        key={s}
+                        onClick={() => { setTags(prev => [...prev, s]); setTagInput('') }}
+                        style={{
+                          width: '100%', textAlign: 'left', padding: '8px 12px',
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: theme.text, fontSize: 13, display: 'block',
+                        }}
+                      >
+                        #{s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
+
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={handleCancel} style={{
                 flex: 1, padding: '14px', borderRadius: 12,

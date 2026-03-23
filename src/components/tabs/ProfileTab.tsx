@@ -242,10 +242,10 @@ export default function ProfileTab() {
     sf(14); ctx.fillStyle = T.textSub
     ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + PX, SY + PY + 14 + 4 + 30 + 18)
 
-    y = SY + SH + 22  // gap cards→records (22px)
+    y = SY + SH + 12  // gap cards→records (12px, was 22)
 
     // ── Today's records section ──
-    sf(16, 600); ctx.fillStyle = T.accent
+    sf(17, 700); ctx.fillStyle = T.accent
     ctx.fillText('今日の記録', L, y + 18)
     ctx.fillStyle = T.border
     ctx.fillRect(L, y + 24, CW, 1)
@@ -268,14 +268,22 @@ export default function ProfileTab() {
       // "合計" label
       sf(12); ctx.fillStyle = T.textSub
       ctx.fillText('合計', L, y + 12)
-      y += 24 + 20  // label + gap to subject bars (20px)
+      y += 24 + 12  // label + gap to subject bars (12px, was 20)
 
-      // Subject bars
+      // Subject bars — proportional to max subject, with visual hierarchy
+      const maxSubjSec = topSubj.length > 0 ? topSubj[0].sec : 1
       const BAR_MAX = Math.round(CW * 0.80)
       topSubj.forEach((s, i) => {
-        sf(14); ctx.fillStyle = T.text
+        const isTop = i < 2
+        const isMinor = s.sec < 60  // less than 1 min
+
+        // Text style: top 2 = semibold, rest = normal + sub color
+        if (isTop) {
+          sf(14, 600); ctx.fillStyle = T.text
+        } else {
+          sf(14); ctx.fillStyle = T.textSub
+        }
         ctx.fillText(s.name, L, y + 14)
-        ctx.fillStyle = T.textSub
         ctx.textAlign = 'right'
         ctx.fillText(fmt(s.sec), R, y + 14)
         ctx.textAlign = 'left'
@@ -283,10 +291,13 @@ export default function ProfileTab() {
         // Bar BG
         ctx.fillStyle = T.border
         roundRect(ctx, L, y + 24, BAR_MAX, 10, 5); ctx.fill()
-        // Bar fill (min width: 30px)
-        const ratio = Math.min(s.sec / goalSec, 1)
+        // Bar fill — proportional to max subject (not goal)
+        const ratio = s.sec / maxSubjSec
+        const barW = Math.max(Math.round(BAR_MAX * ratio), 30)
+        ctx.globalAlpha = isTop ? 0.9 : (isMinor ? 0.35 : 0.5)
         ctx.fillStyle = s.color
-        roundRect(ctx, L, y + 24, Math.max(Math.round(BAR_MAX * ratio), 30), 10, 5); ctx.fill()
+        roundRect(ctx, L, y + 24, barW, 10, 5); ctx.fill()
+        ctx.globalAlpha = 1.0
 
         y += 34 + 14  // bar row height (34) + gap between subjects (14px)
       })

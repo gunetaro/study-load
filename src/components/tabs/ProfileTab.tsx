@@ -175,7 +175,7 @@ export default function ProfileTab() {
     ctx.fillStyle = T.accent
     ctx.fillRect(0, 0, 1200, 4)
 
-    let y = 48  // fixed header start
+    let y = 56  // fixed header start
 
     // ── Header ──
     sf(16)
@@ -242,7 +242,7 @@ export default function ProfileTab() {
     sf(14); ctx.fillStyle = T.textSub
     ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + PX, SY + PY + 14 + 4 + 30 + 18)
 
-    y = SY + SH + 12  // gap cards→records (12px, was 22)
+    y = SY + SH + 16  // gap cards→records (16px)
 
     // ── Today's records section ──
     sf(18, 700); ctx.fillStyle = T.accent
@@ -310,7 +310,7 @@ export default function ProfileTab() {
         roundRect(ctx, SL, barY, barW, barH, barH / 2); ctx.fill()
         ctx.globalAlpha = 1.0
 
-        y += (isTop ? 28 : 25) + 14  // row height + gap between subjects
+        y += (isTop ? 28 : 25) + 16  // row height + gap between subjects (+2px)
       })
 
       if (restSubj.length > 0) {
@@ -320,10 +320,11 @@ export default function ProfileTab() {
       }
     }
 
-    // ── Footer: "#StudyLoad" fixed at bottom - 40px ──
+    // ── Footer: "#StudyLoad" — 30px below content, min 20px from bottom ──
+    const footerY = Math.min(y + 30, 630 - 20)
     sf(16, 600); ctx.fillStyle = T.accent
     ctx.textAlign = 'center'
-    ctx.fillText('#StudyLoad', 600, 600)
+    ctx.fillText('#StudyLoad', 600, footerY)
     ctx.textAlign = 'left'
 
     setShareImgUrl(canvas.toDataURL('image/png'))

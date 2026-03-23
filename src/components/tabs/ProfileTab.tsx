@@ -119,7 +119,7 @@ export default function ProfileTab() {
 
     await document.fonts.ready
 
-    // Fetch today's sessions
+    // ── Fetch today's sessions ──
     const todayStr = new Date().toLocaleDateString('en-CA')
     const { data: todaySessions } = await supabase
       .from('sessions')
@@ -127,184 +127,184 @@ export default function ProfileTab() {
       .eq('user_id', userId)
       .eq('date', todayStr)
 
-    const subjectTotals: Record<string, number> = {}
-    for (const sess of todaySessions || []) {
-      subjectTotals[sess.subject_id] = (subjectTotals[sess.subject_id] || 0) + sess.duration
+    const totals: Record<string, number> = {}
+    for (const s of todaySessions || []) {
+      totals[s.subject_id] = (totals[s.subject_id] || 0) + s.duration
     }
-    const totalTodaySec = Object.values(subjectTotals).reduce((a, b) => a + b, 0)
-    const allSubjectItems = subjects
-      .filter(s => subjectTotals[s.id])
-      .map(s => ({ ...s, sec: subjectTotals[s.id] }))
+    const totalSec = Object.values(totals).reduce((a, b) => a + b, 0)
+    const allSubj = subjects
+      .filter(s => totals[s.id] > 0)
+      .map(s => ({ ...s, sec: totals[s.id] }))
       .sort((a, b) => b.sec - a.sec)
+    const topSubj = allSubj.slice(0, 5)
+    const restSubj = allSubj.slice(5)
+    const restSec = restSubj.reduce((sum, s) => sum + s.sec, 0)
 
-    const MAX_SUBJ = 5
-    const topSubjects = allSubjectItems.slice(0, MAX_SUBJ)
-    const restSubjects = allSubjectItems.slice(MAX_SUBJ)
-    const restSec = restSubjects.reduce((sum, s) => sum + s.sec, 0)
-
-    const dailyGoalSec = (goal?.daily_minutes ?? 120) * 60
+    const goalSec = (goal?.daily_minutes ?? 120) * 60
 
     const fmt = (sec: number) => {
-      const h = Math.floor(sec / 3600)
-      const m = Math.floor((sec % 3600) / 60)
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60)
       if (h > 0 && m > 0) return `${h}時間${m}分`
       if (h > 0) return `${h}時間`
       if (m > 0) return `${m}分`
       return `${sec}秒`
     }
 
-    const selectedTitleLabel = profile.selected_title
-      ? TITLES.find(tt => tt.key === profile.selected_title)?.label
-      : null
+    const titleLabel = profile.selected_title
+      ? TITLES.find(tt => tt.key === profile.selected_title)?.label : null
 
+    // ── Canvas setup ──
     canvas.width = 1200
     canvas.height = 630
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const t = THEMES[themeName]
-    const L = 64
-    const R = 1136
-    const CW = R - L
-    const F = `"DM Sans", system-ui, -apple-system, sans-serif`
-    const sf = (size: number, weight: 400 | 600 | 700 = 400) => {
-      ctx.font = `${weight === 400 ? '' : weight + ' '}${size}px ${F}`.trim()
+    const T = THEMES[themeName]
+    const L = 64, R = 1136, CW = R - L
+    const FF = '"Helvetica Neue", Arial, sans-serif'
+    const sf = (size: number, w: 400 | 600 | 700 = 400) => {
+      ctx.font = `${w === 400 ? 'normal' : w} ${size}px ${FF}`
     }
 
-    // ── Background ──
-    ctx.fillStyle = t.bg
+    // ── Background + accent bar ──
+    ctx.fillStyle = T.bg
     ctx.fillRect(0, 0, 1200, 630)
+    ctx.fillStyle = T.accent
+    ctx.fillRect(0, 0, 1200, 4)
 
-    // Top accent bar (3px)
-    ctx.fillStyle = t.accent
-    ctx.fillRect(0, 0, 1200, 3)
+    // ── Header ──
+    // Row 1: "Study Load" (left) + date (right)  — baseline y=58
+    sf(20)
+    ctx.fillStyle = T.textSub
+    ctx.fillText('Study Load', L, 58)
 
-    // ── Row 1: logo + date (y≈36) ──
     sf(16)
-    ctx.fillStyle = t.textSub
-    ctx.fillText('Study Load', L, 38)
-
-    const todayLabel = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+    ctx.fillStyle = T.textSub
     ctx.textAlign = 'right'
-    ctx.fillText(todayLabel, R, 38)
+    ctx.fillText(new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric' }), R, 58)
     ctx.textAlign = 'left'
 
-    // ── Row 2: name + title (y≈64) ──
+    // Row 2: name (bold 32px) + title (20px accent) — baseline y=100
     const nameStr = profile.name || userMeta?.full_name || 'ユーザー'
-    sf(24, 700)
-    ctx.fillStyle = t.text
-    ctx.fillText(nameStr, L, 66)
-
-    if (selectedTitleLabel) {
+    sf(32, 700)
+    ctx.fillStyle = T.text
+    ctx.fillText(nameStr, L, 100)
+    if (titleLabel) {
       const nw = ctx.measureText(nameStr).width
-      sf(16)
-      ctx.fillStyle = t.accent
-      ctx.fillText(`✨ ${selectedTitleLabel}`, L + nw + 12, 66)
+      sf(20)
+      ctx.fillStyle = T.accent
+      ctx.fillText(` ✨${titleLabel}`, L + nw, 100)
     }
 
-    // ── Status bar (y: 80–132) ──
-    ctx.fillStyle = t.card
-    roundRect(ctx, L, 80, CW, 46, 10)
-    ctx.fill()
-    ctx.strokeStyle = t.border
-    ctx.lineWidth = 1
-    roundRect(ctx, L, 80, CW, 46, 10)
-    ctx.stroke()
-
-    sf(14, 600)
-    const statItems = [
-      { label: `Lv. ${level}`,                           color: t.accent },
-      { label: `${currentRank.emoji} ${currentRank.name}`, color: t.text },
-      { label: `XP: ${xp}`,                              color: t.text },
-      { label: `バッジ: ${badges.length}/${BADGES.length}`, color: t.text },
+    // ── Status cards (y: 120–200) ──
+    const SY = 120, SH = 80, CGAP = 16
+    const cw = Math.floor((CW - CGAP * 2) / 3)
+    const cardDefs = [
+      { x: L,                     w: cw },
+      { x: L + cw + CGAP,         w: cw },
+      { x: L + 2 * (cw + CGAP),   w: R - (L + 2 * (cw + CGAP)) },
     ]
-    const sw = CW / statItems.length
-    statItems.forEach((item, i) => {
-      const cx = L + sw * i + sw / 2
-      const iw = ctx.measureText(item.label).width
-      ctx.fillStyle = item.color
-      ctx.fillText(item.label, cx - iw / 2, 109)
-      if (i < statItems.length - 1) {
-        ctx.fillStyle = t.border
-        ctx.fillRect(L + sw * (i + 1) - 0.5, 88, 1, 30)
-      }
+
+    cardDefs.forEach(({ x, w }) => {
+      ctx.fillStyle = T.card
+      roundRect(ctx, x, SY, w, SH, 12); ctx.fill()
+      ctx.strokeStyle = T.border; ctx.lineWidth = 1
+      roundRect(ctx, x, SY, w, SH, 12); ctx.stroke()
     })
 
-    // ── Main: today's records (y: 144–) ──
-    const MY = 148
+    const P = 14  // card inner padding
 
-    // "今日の記録" heading
-    sf(14, 600)
-    ctx.fillStyle = t.accent
-    ctx.fillText('今日の記録', L, MY + 16)
+    // Card 1 — Level
+    sf(12); ctx.fillStyle = T.textSub
+    ctx.fillText('レベル', cardDefs[0].x + P, SY + 26)
+    sf(34, 700); ctx.fillStyle = T.accent
+    ctx.fillText(String(level), cardDefs[0].x + P, SY + 62)
+    const xbMax = Math.floor(cardDefs[0].w * 0.80)
+    ctx.fillStyle = T.border
+    roundRect(ctx, cardDefs[0].x + P, SY + 67, xbMax, 4, 2); ctx.fill()
+    ctx.fillStyle = T.accent
+    roundRect(ctx, cardDefs[0].x + P, SY + 67, Math.max(Math.round(xbMax * xpProgress / 100), 4), 4, 2); ctx.fill()
+    sf(11); ctx.fillStyle = T.textSub
+    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + P, SY + 78)
 
-    if (totalTodaySec === 0) {
-      sf(18)
-      ctx.fillStyle = t.textSub
-      ctx.fillText('本日の学習記録がありません', L, MY + 70)
+    // Card 2 — Rank
+    sf(12); ctx.fillStyle = T.textSub
+    ctx.fillText('ランク', cardDefs[1].x + P, SY + 26)
+    sf(22, 700); ctx.fillStyle = T.text
+    ctx.fillText(`${currentRank.emoji} ${currentRank.name}`, cardDefs[1].x + P, SY + 60)
+
+    // Card 3 — Badge
+    sf(12); ctx.fillStyle = T.textSub
+    ctx.fillText('バッジ', cardDefs[2].x + P, SY + 26)
+    sf(34, 700); ctx.fillStyle = T.accent
+    const bStr = String(badges.length)
+    ctx.fillText(bStr, cardDefs[2].x + P, SY + 62)
+    const bW = ctx.measureText(bStr).width
+    sf(14); ctx.fillStyle = T.textSub
+    ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + P + bW + 6, SY + 62)
+
+    // ── Today's records section (starts at y=220) ──
+    const RY = SY + SH + 20   // = 220
+
+    sf(16, 600); ctx.fillStyle = T.accent
+    ctx.fillText('今日の記録', L, RY + 18)
+    ctx.fillStyle = T.border
+    ctx.fillRect(L, RY + 24, CW, 1)
+
+    if (totalSec === 0) {
+      sf(16); ctx.fillStyle = T.textSub
+      ctx.fillText('本日の学習記録がありません', L, RY + 80)
     } else {
-      // Total time: large part + goal part
-      sf(56, 600)
-      ctx.fillStyle = t.accent
-      const totalStr = fmt(totalTodaySec)
-      ctx.fillText(totalStr, L, MY + 76)
+      // Total time: 56px semibold + "/ goal" in smaller textSub — baseline y≈308
+      const totalBase = RY + 24 + 22 + 46   // line_y + gap + cap_height ≈ 312
+      const totalStr = fmt(totalSec)
+      sf(56, 600); ctx.fillStyle = T.accent
+      ctx.fillText(totalStr, L, totalBase)
       const totalW = ctx.measureText(totalStr).width
+      sf(20); ctx.fillStyle = T.textSub
+      ctx.fillText(` / ${fmt(goalSec)}`, L + totalW, totalBase)
 
-      sf(20)
-      ctx.fillStyle = t.textSub
-      ctx.fillText(` / ${fmt(dailyGoalSec)}`, L + totalW, MY + 70)
+      // "合計" label  — baseline totalBase+20
+      sf(12); ctx.fillStyle = T.textSub
+      ctx.fillText('合計', L, totalBase + 20)
 
-      // "合計" label
-      sf(12)
-      ctx.fillStyle = t.textSub
-      ctx.fillText('合計', L, MY + 92)
+      // Subject bars — start totalBase+44
+      const BAR_MAX = Math.round(CW * 0.80)
+      let rowY = totalBase + 44
 
-      // ── Subject bars ──
-      const BAR_MAX_W = Math.round(CW * 0.80)  // 80% of content width
-      let rowY = MY + 112
-
-      topSubjects.forEach(s => {
-        // Name (left) + time (right)
-        sf(14)
-        ctx.fillStyle = t.text
-        ctx.fillText(s.name, L, rowY + 13)
-        ctx.fillStyle = t.textSub
+      topSubj.forEach(s => {
+        sf(14); ctx.fillStyle = T.text
+        ctx.fillText(s.name, L, rowY + 14)
+        ctx.fillStyle = T.textSub
         ctx.textAlign = 'right'
-        ctx.fillText(fmt(s.sec), R, rowY + 13)
+        ctx.fillText(fmt(s.sec), R, rowY + 14)
         ctx.textAlign = 'left'
 
-        // Bar background (80% width)
-        ctx.fillStyle = t.border
-        roundRect(ctx, L, rowY + 18, BAR_MAX_W, 6, 3)
-        ctx.fill()
-
-        // Bar fill: ratio against daily goal
-        const ratio = Math.min(s.sec / dailyGoalSec, 1)
-        const barW = Math.max(Math.round(BAR_MAX_W * ratio), 12)
+        // Bar BG
+        ctx.fillStyle = T.border
+        roundRect(ctx, L, rowY + 20, BAR_MAX, 10, 5); ctx.fill()
+        // Bar fill (ratio to goal)
+        const ratio = Math.min(s.sec / goalSec, 1)
         ctx.fillStyle = s.color
-        roundRect(ctx, L, rowY + 18, barW, 6, 3)
-        ctx.fill()
+        roundRect(ctx, L, rowY + 20, Math.max(Math.round(BAR_MAX * ratio), 12), 10, 5); ctx.fill()
 
-        rowY += 38
+        rowY += 42
       })
 
-      // 他N教科
-      if (restSubjects.length > 0) {
-        sf(13)
-        ctx.fillStyle = t.textSub
-        ctx.fillText(`他${restSubjects.length}教科  ${fmt(restSec)}`, L, rowY + 13)
+      if (restSubj.length > 0) {
+        sf(14); ctx.fillStyle = T.textSub
+        ctx.fillText(`他${restSubj.length}教科  ${fmt(restSec)}`, L, rowY + 14)
       }
     }
 
-    // ── Footer ──
-    sf(14, 600)
-    ctx.fillStyle = t.accent
-    ctx.textAlign = 'right'
-    ctx.fillText('#StudyLoad', R, 616)
+    // ── Footer: "#StudyLoad" centered ──
+    sf(16, 600); ctx.fillStyle = T.accent
+    ctx.textAlign = 'center'
+    ctx.fillText('#StudyLoad', 600, 606)
     ctx.textAlign = 'left'
 
     setShareImgUrl(canvas.toDataURL('image/png'))
-  }, [profile, themeName, level, xp, currentRank, badges, subjects, goal, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile, themeName, level, xp, xpProgress, currentRank, badges, subjects, goal, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadShare = () => {
     if (!shareImgUrl) return

@@ -11,7 +11,6 @@ export default function ProfileTab() {
   const supabase = createClient()
   const router = useRouter()
 
-  const [themeModal, setThemeModal] = useState(false)
   const [pomoModal, setPomoModal] = useState(false)
   const [customModal, setCustomModal] = useState(false)
   const [reminderModal, setReminderModal] = useState(false)
@@ -533,15 +532,13 @@ export default function ProfileTab() {
         </div>
       </div>
 
-      {/* 7. Menu grid — 6 buttons */}
+      {/* 7. Menu grid — 5 buttons */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
         {[
-          { label: '🎨 テーマ', onClick: () => setThemeModal(true) },
-          { label: '⚡ ポモドーロ', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setPomoModal(true) } },
           { label: '🎯 目標設定', onClick: () => { setGoalDaily(goal?.daily_minutes ?? 120); setGoalWeekly(goal?.weekly_minutes ?? 600); setGoalModal(true) } },
-          { label: '📲 記録をシェア', onClick: generateShareImage },
           { label: '🔔 リマインダー', onClick: () => { setReminder(settings?.reminder_settings || defaultReminder); setReminderModal(true) } },
           { label: '🎨 カスタマイズ', onClick: () => { setCustomColors(settings?.custom_colors || {}); setCustomModal(true) } },
+          { label: '⚡ ポモドーロ', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setPomoModal(true) } },
         ].map(btn => (
           <button key={btn.label} onClick={btn.onClick} style={{
             background: theme.card, border: `1px solid ${theme.border}`,
@@ -552,6 +549,14 @@ export default function ProfileTab() {
             {btn.label}
           </button>
         ))}
+        <button onClick={generateShareImage} style={{
+          gridColumn: '1 / -1', background: theme.card, border: `1px solid ${theme.border}`,
+          borderRadius: 12, padding: '10px', fontSize: 12, fontWeight: 600,
+          cursor: 'pointer', color: theme.text,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        }}>
+          📲 結果をシェア
+        </button>
       </div>
 
       {/* Logout or Demo CTA */}
@@ -578,24 +583,6 @@ export default function ProfileTab() {
           </button>
         </div>
       )}
-
-      {/* ── Theme Modal ── */}
-      <Modal open={themeModal} onClose={() => setThemeModal(false)} title="テーマ">
-        <div style={{ display: 'flex', gap: 8 }}>
-          {(['minimal','pop','midnight','pastel'] as Theme[]).map(t => (
-            <button key={t} onClick={() => { setThemeName(t); setThemeModal(false) }} style={{
-              flex: 1, padding: '10px 4px', borderRadius: 12,
-              border: `2px solid ${themeName===t ? theme.accent : theme.border}`,
-              background: THEMES[t].card, cursor: 'pointer', textAlign: 'center',
-            }}>
-              <div style={{ width: 24, height: 24, borderRadius: '50%', background: THEMES[t].accent, margin: '0 auto 4px' }} />
-              <div style={{ fontSize: 10, fontWeight: 600, color: THEMES[t].text }}>
-                {t === 'minimal' ? 'ライト' : t === 'pop' ? 'ポップ' : t === 'midnight' ? 'ダーク' : 'パステル'}
-              </div>
-            </button>
-          ))}
-        </div>
-      </Modal>
 
       {/* ── Pomodoro Modal ── */}
       <Modal open={pomoModal} onClose={() => setPomoModal(false)} title="ポモドーロ設定">

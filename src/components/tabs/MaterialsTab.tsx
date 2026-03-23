@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
 import { SubjectIconPicker, SubjectIconDisplay, EMOJIS } from '@/components/ui/SubjectIconPicker'
-import { Subject, Material } from '@/types'
+import { Subject, Material, getRank } from '@/types'
 
 const THEME_PRESET_COLORS: Record<string, string[]> = {
   minimal:  ['#5B8DEF','#EF8B5B','#6BC9A4','#C97BB6','#E8B44A','#8B95A5','#E07070','#70B8E0'],
@@ -17,7 +17,7 @@ interface EditSubject { id?: string; name: string; icon: string; color: string }
 interface EditMaterial { id?: string; name: string; url: string; memo: string; subject_id: string }
 
 export default function MaterialsTab() {
-  const { subjects, refreshSubjects, userId, theme, themeName, showToast, isDemo } = useApp()
+  const { subjects, refreshSubjects, userId, theme, themeName, showToast, isDemo, profile, userMeta } = useApp()
   const supabase = createClient()
   const colorInputRef = useRef<HTMLInputElement>(null)
   const presetColors = THEME_PRESET_COLORS[themeName] || THEME_PRESET_COLORS.minimal
@@ -154,7 +154,20 @@ export default function MaterialsTab() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <div style={{ fontSize: 13, color: theme.textSub, fontWeight: 600 }}>教科・教材管理</div>
+        <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+          {(() => {
+            const av = profile?.avatar_url || userMeta?.avatar_url || ''
+            const ini = (profile?.name || userMeta?.full_name || 'U')[0]
+            const lv = Math.floor((profile?.xp || 0) / 100) + 1
+            const rk = getRank(lv)
+            return <>
+              {av ? <img src={av} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', marginRight: 8 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                : <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: theme.accent, marginRight: 8 }}>{ini}</div>}
+              <span style={{ fontSize: 16, fontWeight: 700, color: theme.text, flex: 1 }}>教科・教材</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSub, marginRight: 12 }}>Lv.{lv} {rk.emoji}</span>
+            </>
+          })()}
+        </div>
         <button onClick={openAddSubject} style={{
           background: theme.accent, color: '#fff', border: 'none',
           borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',

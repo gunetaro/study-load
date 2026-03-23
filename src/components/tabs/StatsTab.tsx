@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
-import { fmtDuration, Session } from '@/types'
+import { fmtDuration, Session, getRank } from '@/types'
 import { StatsSkeleton } from '@/components/ui/Skeleton'
 import { getDemoSessions } from '@/lib/demo-data'
 
@@ -18,7 +18,7 @@ function getWeekStart(date: Date) {
 function ds(d: Date) { return d.toISOString().split('T')[0] }
 
 export default function StatsTab() {
-  const { userId, theme, subjects, goal, isDemo } = useApp()
+  const { userId, theme, subjects, goal, isDemo, profile, userMeta } = useApp()
   const supabase = createClient()
 
   const [sessions, setSessions] = useState<Session[]>([])
@@ -145,6 +145,22 @@ export default function StatsTab() {
 
   return (
     <div>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+        {(() => {
+          const av = profile?.avatar_url || userMeta?.avatar_url || ''
+          const ini = (profile?.name || userMeta?.full_name || 'U')[0]
+          const lv = Math.floor((profile?.xp || 0) / 100) + 1
+          const rk = getRank(lv)
+          return <>
+            {av ? <img src={av} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', marginRight: 8 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              : <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: theme.accent, marginRight: 8 }}>{ini}</div>}
+            <span style={{ fontSize: 16, fontWeight: 700, color: theme.text, flex: 1 }}>統計</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSub }}>Lv.{lv} {rk.emoji}</span>
+          </>
+        })()}
+      </div>
+
       {/* Tab pills */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 14 }}>
         {([['total','累計'],['today','今日'],['week','週間'],['month','月間'],['subject','教科別']] as [Tab,string][]).map(([t, l]) => (

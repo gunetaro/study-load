@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
-import { Session, Material, fmtDuration } from '@/types'
+import { Session, Material, fmtDuration, getRank } from '@/types'
 import { TimelineSkeleton } from '@/components/ui/Skeleton'
 import { getDemoSessions } from '@/lib/demo-data'
 
@@ -12,7 +12,7 @@ type ViewMode = 'list' | 'calendar'
 function ds(d: Date) { return d.toISOString().split('T')[0] }
 
 export default function TimelineTab() {
-  const { userId, theme, subjects, showToast, isDemo } = useApp()
+  const { userId, theme, subjects, showToast, isDemo, profile, userMeta } = useApp()
   const supabase = createClient()
 
   const [sessions, setSessions] = useState<Session[]>([])
@@ -148,7 +148,18 @@ export default function TimelineTab() {
     <div>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: 16, fontWeight: 700, color: theme.text, flex: 1 }}>📋 記録</span>
+        {(() => {
+          const av = profile?.avatar_url || userMeta?.avatar_url || ''
+          const ini = (profile?.name || userMeta?.full_name || 'U')[0]
+          const lv = Math.floor((profile?.xp || 0) / 100) + 1
+          const rk = getRank(lv)
+          return <>
+            {av ? <img src={av} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', marginRight: 8 }} onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              : <div style={{ width: 28, height: 28, borderRadius: '50%', background: theme.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: theme.accent, marginRight: 8 }}>{ini}</div>}
+            <span style={{ fontSize: 16, fontWeight: 700, color: theme.text, flex: 1 }}>学習記録</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: theme.textSub }}>Lv.{lv} {rk.emoji}</span>
+          </>
+        })()}
         <div style={{ display: 'flex', borderRadius: 10, overflow: 'hidden', border: `1px solid ${theme.border}` }}>
           <button onClick={() => { setViewMode('list'); setSelectedDay(null) }} style={{
             padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,

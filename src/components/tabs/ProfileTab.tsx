@@ -245,7 +245,7 @@ export default function ProfileTab() {
     y = SY + SH + 12  // gap cards→records (12px, was 22)
 
     // ── Today's records section ──
-    sf(17, 700); ctx.fillStyle = T.accent
+    sf(18, 700); ctx.fillStyle = T.accent
     ctx.fillText('今日の記録', L, y + 18)
     ctx.fillStyle = T.border
     ctx.fillRect(L, y + 24, CW, 1)
@@ -255,11 +255,13 @@ export default function ProfileTab() {
       sf(16); ctx.fillStyle = T.textSub
       ctx.fillText('本日の学習記録がありません', L, y + 40)
     } else {
-      y += 24  // gap to total time
+      y += 10  // gap heading→total (10px, tight parent-child)
 
       const totalStr = fmt(totalSec)
-      sf(44, 600); ctx.fillStyle = T.accent
+      sf(44, 600)
+      ctx.globalAlpha = 0.8; ctx.fillStyle = T.accent
       ctx.fillText(totalStr, L, y + 38)
+      ctx.globalAlpha = 1.0
       const totalW = ctx.measureText(totalStr).width
       sf(18); ctx.fillStyle = T.textSub
       ctx.fillText(` / ${fmt(goalSec)}`, L + totalW, y + 38)
@@ -268,43 +270,51 @@ export default function ProfileTab() {
       // "合計" label
       sf(12); ctx.fillStyle = T.textSub
       ctx.fillText('合計', L, y + 12)
-      y += 24 + 12  // label + gap to subject bars (12px, was 20)
+      y += 24 + 12  // label + gap to subject bars
 
-      // Subject bars — proportional to max subject, with visual hierarchy
-      const maxSubjSec = topSubj.length > 0 ? topSubj[0].sec : 1
-      const BAR_MAX = Math.round(CW * 0.80)
+      // Subject bars — proportional to totalSec, with visual hierarchy
+      const BAR_MAX = Math.round(CW * 0.75)
+      const timeX = R  // fixed right-align x for all time texts
       topSubj.forEach((s, i) => {
         const isTop = i < 2
-        const isMinor = s.sec < 60  // less than 1 min
+        const barH = isTop ? 10 : 7
 
-        // Text style: top 2 = semibold, rest = normal + sub color
+        // Text: top 2 = 14px semibold, 3+ = 13px normal sub-color dimmed
         if (isTop) {
           sf(14, 600); ctx.fillStyle = T.text
         } else {
-          sf(14); ctx.fillStyle = T.textSub
+          ctx.globalAlpha = 0.6; sf(13); ctx.fillStyle = T.textSub
         }
         ctx.fillText(s.name, L, y + 14)
         ctx.textAlign = 'right'
-        ctx.fillText(fmt(s.sec), R, y + 14)
+        if (isTop) {
+          sf(14, 600); ctx.fillStyle = T.text
+        } else {
+          sf(13); ctx.fillStyle = T.textSub
+        }
+        ctx.fillText(fmt(s.sec), timeX, y + 14)
         ctx.textAlign = 'left'
+        if (!isTop) ctx.globalAlpha = 1.0
 
-        // Bar BG
+        // Bar — 4px below text
+        const barY = y + 18
         ctx.fillStyle = T.border
-        roundRect(ctx, L, y + 24, BAR_MAX, 10, 5); ctx.fill()
-        // Bar fill — proportional to max subject (not goal)
-        const ratio = s.sec / maxSubjSec
-        const barW = Math.max(Math.round(BAR_MAX * ratio), 30)
-        ctx.globalAlpha = isTop ? 0.9 : (isMinor ? 0.35 : 0.5)
+        roundRect(ctx, L, barY, BAR_MAX, barH, barH / 2); ctx.fill()
+        // Bar fill — proportional to total time
+        const ratio = s.sec / totalSec
+        const barW = Math.max(Math.round(BAR_MAX * ratio), 20)
+        ctx.globalAlpha = isTop ? 0.9 : 0.3
         ctx.fillStyle = s.color
-        roundRect(ctx, L, y + 24, barW, 10, 5); ctx.fill()
+        roundRect(ctx, L, barY, barW, barH, barH / 2); ctx.fill()
         ctx.globalAlpha = 1.0
 
-        y += 34 + 14  // bar row height (34) + gap between subjects (14px)
+        y += (isTop ? 28 : 25) + 14  // row height + gap between subjects
       })
 
       if (restSubj.length > 0) {
-        sf(14); ctx.fillStyle = T.textSub
+        ctx.globalAlpha = 0.6; sf(13); ctx.fillStyle = T.textSub
         ctx.fillText(`他${restSubj.length}教科  ${fmt(restSec)}`, L, y + 14)
+        ctx.globalAlpha = 1.0
       }
     }
 

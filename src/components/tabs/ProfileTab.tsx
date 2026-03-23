@@ -194,7 +194,7 @@ export default function ProfileTab() {
       ctx.fillStyle = T.accent
       ctx.fillText(` ✨${titleLabel}`, L + nw, y + 16)
     }
-    y += 36 + 24  // name height + gap to cards (24px)
+    y += 36 + 16  // name height + gap to cards (16px)
 
     // ── Status cards (height: 90px) ──
     const SY = y, SH = CARDS_H, CGAP = 16
@@ -212,15 +212,16 @@ export default function ProfileTab() {
     })
     const PX = 16, PY = 12  // card inner padding
 
-    // Card 1 — Level (number + XP inline, bar below)
+    // Card 1 — Level (number + XP on same line, bar below)
     sf(12); ctx.fillStyle = T.textSub
     ctx.fillText('レベル', cardDefs[0].x + PX, SY + PY + 14)
+    const lvBaseY = SY + PY + 14 + 4 + 32
     sf(36, 700); ctx.fillStyle = T.accent
-    ctx.fillText(String(level), cardDefs[0].x + PX, SY + PY + 14 + 4 + 32)
+    ctx.fillText(String(level), cardDefs[0].x + PX, lvBaseY)
     const lvNumW = ctx.measureText(String(level)).width
-    sf(12); ctx.fillStyle = T.textSub
-    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + PX + lvNumW + 14, SY + PY + 14 + 4 + 32)
-    const xpBarY = SY + PY + 14 + 4 + 32 + 8
+    sf(13); ctx.fillStyle = T.textSub
+    ctx.fillText(`XP:${xp}`, cardDefs[0].x + PX + lvNumW + 8, lvBaseY)
+    const xpBarY = lvBaseY + 12
     const xbMax = Math.floor(cardDefs[0].w * 0.70)
     ctx.fillStyle = T.border
     roundRect(ctx, cardDefs[0].x + PX, xpBarY, xbMax, 6, 3); ctx.fill()
@@ -241,7 +242,7 @@ export default function ProfileTab() {
     sf(14); ctx.fillStyle = T.textSub
     ctx.fillText(`/ ${BADGES.length}個`, cardDefs[2].x + PX, SY + PY + 14 + 4 + 30 + 18)
 
-    y = SY + SH + 28  // gap cards→records (28px)
+    y = SY + SH + 22  // gap cards→records (22px)
 
     // ── Today's records section ──
     sf(16, 600); ctx.fillStyle = T.accent
@@ -254,7 +255,7 @@ export default function ProfileTab() {
       sf(16); ctx.fillStyle = T.textSub
       ctx.fillText('本日の学習記録がありません', L, y + 40)
     } else {
-      y += 28  // gap to total time
+      y += 24  // gap to total time
 
       const totalStr = fmt(totalSec)
       sf(44, 600); ctx.fillStyle = T.accent
@@ -267,7 +268,7 @@ export default function ProfileTab() {
       // "合計" label
       sf(12); ctx.fillStyle = T.textSub
       ctx.fillText('合計', L, y + 12)
-      y += 24 + 24  // label + gap to subject bars (24px)
+      y += 24 + 20  // label + gap to subject bars (20px)
 
       // Subject bars
       const BAR_MAX = Math.round(CW * 0.80)
@@ -287,7 +288,7 @@ export default function ProfileTab() {
         ctx.fillStyle = s.color
         roundRect(ctx, L, y + 24, Math.max(Math.round(BAR_MAX * ratio), 30), 10, 5); ctx.fill()
 
-        y += 34 + 18  // bar row height (34) + gap between subjects (18px)
+        y += 34 + 14  // bar row height (34) + gap between subjects (14px)
       })
 
       if (restSubj.length > 0) {
@@ -299,7 +300,7 @@ export default function ProfileTab() {
     // ── Footer: "#StudyLoad" fixed at bottom - 40px ──
     sf(16, 600); ctx.fillStyle = T.accent
     ctx.textAlign = 'center'
-    ctx.fillText('#StudyLoad', 600, 590)
+    ctx.fillText('#StudyLoad', 600, 600)
     ctx.textAlign = 'left'
 
     setShareImgUrl(canvas.toDataURL('image/png'))

@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
-import { BADGES, TITLES, THEMES, Theme, RANKS, getRank, XP_PER_LEVEL } from '@/types'
+import { BADGES, TITLES, THEMES, Theme, ThemeColors, RANKS, getRank, XP_PER_LEVEL } from '@/types'
 import { useRouter } from 'next/navigation'
 
 export default function ProfileTab() {
@@ -11,10 +11,21 @@ export default function ProfileTab() {
   const supabase = createClient()
   const router = useRouter()
 
-  const [settingsModal, setSettingsModal] = useState(false)
+  const [themeModal, setThemeModal] = useState(false)
+  const [pomoModal, setPomoModal] = useState(false)
+  const [customModal, setCustomModal] = useState(false)
+  const [reminderModal, setReminderModal] = useState(false)
   const [badgeModal, setBadgeModal] = useState(false)
   const [titleModal, setTitleModal] = useState(false)
   const [goalModal, setGoalModal] = useState(false)
+
+  // Custom colors editing
+  const [customColors, setCustomColors] = useState<Partial<Record<string, string>>>(settings?.custom_colors || {})
+  const colorInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  // Reminder
+  const defaultReminder = { enabled: false, time: '20:00', message: '今日まだ勉強してないよ！' }
+  const [reminder, setReminder] = useState(settings?.reminder_settings || defaultReminder)
   const [shareImgUrl, setShareImgUrl] = useState<string | null>(null)
   const [editModal, setEditModal] = useState(false)
   const [editName, setEditName] = useState('')
@@ -391,6 +402,37 @@ export default function ProfileTab() {
   const recentBadges = BADGES.filter(b => hasBadge(b.key)).slice(-4)
   const displayBadges = recentBadges.length >= 4 ? recentBadges : BADGES.slice(0, 4)
 
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) { showToast('このブラウザは通知に対応していません'); return false }
+    if (Notification.permission === 'granted') return true
+    const perm = await Notification.requestPermission()
+    if (perm !== 'granted') { showToast('通知が許可されませんでした'); return false }
+    return true
+  }
+
+  const handleReminderSave = async () => {
+    if (reminder.enabled) {
+      const ok = await requestNotificationPermission()
+      if (!ok) return
+    }
+    await saveSettings({ reminder_settings: reminder } as any)
+    setReminderModal(false)
+    showToast('リマインダーを保存しました')
+  }
+
+  const handleCustomColorsSave = async () => {
+    await saveSettings({ custom_colors: customColors } as any)
+    setCustomModal(false)
+    showToast('カスタムカラーを保存しました')
+  }
+
+  const handleCustomColorsReset = async () => {
+    setCustomColors({})
+    await saveSettings({ custom_colors: {} } as any)
+    setCustomModal(false)
+    showToast('テーマデフォルトに戻しました')
+  }
+
   return (
     <div>
       <canvas ref={canvasRef} style={{ display: 'none' }} />
@@ -406,7 +448,7 @@ export default function ProfileTab() {
         )}
       </div>
 
-      {/* 2. Avatar overlapping header */}
+      {/* 2. Avatar */}
       <div style={{ marginTop: -28, marginLeft: 16, marginBottom: 6 }}>
         {displayAvatar ? (
           <img src={displayAvatar} alt=""
@@ -419,20 +461,13 @@ export default function ProfileTab() {
         )}
       </div>
 
-      {/* 3. Name + Title + Edit button */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', padding: '0 4px', marginBottom: 10 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: theme.text }}>{displayName}</div>
-          {profile?.selected_title && (
-            <div style={{ fontSize: 11, color: theme.accent, fontWeight: 600, marginTop: 1 }}>
-              ✨ {TITLES.find(t => t.key === profile.selected_title)?.label}
-            </div>
-          )}
-        </div>
+      {/* 3. Name + Edit (no title here) */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '0 4px', marginBottom: 10 }}>
+        <div style={{ fontSize: 17, fontWeight: 800, color: theme.text, flex: 1 }}>{displayName}</div>
         <button onClick={handleEditOpen} style={{
           background: theme.cardAlt, border: `1px solid ${theme.border}`,
           borderRadius: 10, padding: '4px 10px', fontSize: 11, fontWeight: 600,
-          cursor: 'pointer', color: theme.textSub, flexShrink: 0, marginTop: 2,
+          cursor: 'pointer', color: theme.textSub, flexShrink: 0,
         }}>
           ✏️ 編集
         </button>
@@ -497,13 +532,15 @@ export default function ProfileTab() {
         </div>
       </div>
 
-      {/* 7. Menu grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+      {/* 7. Menu grid — 6 buttons */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 10 }}>
         {[
+          { label: '🎨 テーマ', onClick: () => setThemeModal(true) },
+          { label: '⚡ ポモドーロ', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setPomoModal(true) } },
           { label: '🎯 目標設定', onClick: () => { setGoalDaily(goal?.daily_minutes ?? 120); setGoalWeekly(goal?.weekly_minutes ?? 600); setGoalModal(true) } },
-          { label: '📤 シェア画像', onClick: generateShareImage },
-          { label: '⚙️ 設定', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setSettingsModal(true) } },
-          { label: '🚪 ログアウト', onClick: handleLogout },
+          { label: '📲 記録をシェア', onClick: generateShareImage },
+          { label: '🔔 リマインダー', onClick: () => { setReminder(settings?.reminder_settings || defaultReminder); setReminderModal(true) } },
+          { label: '🎨 カスタマイズ', onClick: () => { setCustomColors(settings?.custom_colors || {}); setCustomModal(true) } },
         ].map(btn => (
           <button key={btn.label} onClick={btn.onClick} style={{
             background: theme.card, border: `1px solid ${theme.border}`,
@@ -516,28 +553,39 @@ export default function ProfileTab() {
         ))}
       </div>
 
-      {/* ── Settings Modal (theme + pomodoro) ── */}
-      <Modal open={settingsModal} onClose={() => setSettingsModal(false)} title="設定">
-        <div>
-          {/* Theme */}
-          <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, marginBottom: 8 }}>テーマ</div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-            {(['minimal','pop','midnight','pastel'] as Theme[]).map(t => (
-              <button key={t} onClick={() => setThemeName(t)} style={{
-                flex: 1, padding: '10px 4px', borderRadius: 12,
-                border: `2px solid ${themeName===t ? theme.accent : theme.border}`,
-                background: THEMES[t].card, cursor: 'pointer', textAlign: 'center',
-              }}>
-                <div style={{ width: 24, height: 24, borderRadius: '50%', background: THEMES[t].accent, margin: '0 auto 4px' }} />
-                <div style={{ fontSize: 10, fontWeight: 600, color: THEMES[t].text }}>
-                  {t === 'minimal' ? 'シンプル' : t === 'pop' ? 'ポップ' : t === 'midnight' ? 'ミッドナイト' : 'パステル'}
-                </div>
-              </button>
-            ))}
-          </div>
+      {/* Logout — standalone, subdued */}
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+        <button onClick={handleLogout} style={{
+          width: '60%', padding: '10px', borderRadius: 12, fontSize: 12, fontWeight: 600,
+          cursor: 'pointer', textAlign: 'center',
+          background: `${theme.danger}1A`, color: `${theme.danger}99`,
+          border: `1px solid ${theme.danger}33`,
+        }}>
+          🚪 ログアウト
+        </button>
+      </div>
 
-          {/* Pomodoro */}
-          <div style={{ fontSize: 14, fontWeight: 700, color: theme.text, marginBottom: 8 }}>ポモドーロ</div>
+      {/* ── Theme Modal ── */}
+      <Modal open={themeModal} onClose={() => setThemeModal(false)} title="テーマ">
+        <div style={{ display: 'flex', gap: 8 }}>
+          {(['minimal','pop','midnight','pastel'] as Theme[]).map(t => (
+            <button key={t} onClick={() => { setThemeName(t); setThemeModal(false) }} style={{
+              flex: 1, padding: '10px 4px', borderRadius: 12,
+              border: `2px solid ${themeName===t ? theme.accent : theme.border}`,
+              background: THEMES[t].card, cursor: 'pointer', textAlign: 'center',
+            }}>
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: THEMES[t].accent, margin: '0 auto 4px' }} />
+              <div style={{ fontSize: 10, fontWeight: 600, color: THEMES[t].text }}>
+                {t === 'minimal' ? 'シンプル' : t === 'pop' ? 'ポップ' : t === 'midnight' ? 'ミッドナイト' : 'パステル'}
+              </div>
+            </button>
+          ))}
+        </div>
+      </Modal>
+
+      {/* ── Pomodoro Modal ── */}
+      <Modal open={pomoModal} onClose={() => setPomoModal(false)} title="ポモドーロ設定">
+        <div>
           {([
             { label: '作業（分）', key: 'work', min: 1, max: 90 },
             { label: '短い休憩', key: 'short', min: 1, max: 30 },
@@ -549,18 +597,118 @@ export default function ProfileTab() {
                 <span style={{ fontSize: 12, color: theme.textSub }}>{label}</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: theme.accent }}>{pomoEdit[key]}</span>
               </div>
-              <input
-                type="range" min={min} max={max} value={pomoEdit[key]}
+              <input type="range" min={min} max={max} value={pomoEdit[key]}
                 onChange={e => setPomoEdit(p => ({ ...p, [key]: parseInt(e.target.value) }))}
-                style={{ width: '100%', accentColor: theme.accent }}
-              />
+                style={{ width: '100%', accentColor: theme.accent }} />
             </div>
           ))}
           <button onClick={async () => {
             await saveSettings({ pomo_settings: pomoEdit } as any)
-            setSettingsModal(false)
+            setPomoModal(false)
             showToast('設定を保存しました')
           }} style={{
+            width: '100%', background: theme.accent, color: '#fff',
+            border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: 'pointer', fontSize: 15,
+          }}>
+            保存
+          </button>
+        </div>
+      </Modal>
+
+      {/* ── Customize Colors Modal ── */}
+      <Modal open={customModal} onClose={() => setCustomModal(false)} title="カスタマイズ">
+        <div>
+          <div style={{ fontSize: 12, color: theme.textSub, marginBottom: 12 }}>テーマをベースに各色を個別変更できます</div>
+          {([
+            { key: 'bg', label: '背景色' },
+            { key: 'card', label: 'カード色' },
+            { key: 'accent', label: 'アクセントカラー' },
+            { key: 'text', label: '文字色' },
+            { key: 'textSub', label: 'サブ文字色' },
+            { key: 'border', label: '境界線色' },
+          ] as { key: keyof ThemeColors; label: string }[]).map(({ key, label }) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 12, color: theme.textSub, flex: 1 }}>{label}</span>
+              <div
+                onClick={() => colorInputRefs.current[key]?.click()}
+                style={{
+                  width: 28, height: 28, borderRadius: 8, cursor: 'pointer',
+                  background: customColors[key] || THEMES[themeName][key],
+                  border: `2px solid ${theme.border}`,
+                }}
+              />
+              <input
+                ref={el => { colorInputRefs.current[key] = el }}
+                type="color"
+                value={customColors[key] || THEMES[themeName][key]}
+                onChange={e => setCustomColors(p => ({ ...p, [key]: e.target.value }))}
+                style={{ display: 'none' }}
+              />
+              {customColors[key] && (
+                <button onClick={() => setCustomColors(p => { const n = { ...p }; delete n[key]; return n })}
+                  style={{ background: 'none', border: 'none', fontSize: 12, color: theme.textSub, cursor: 'pointer' }}>✕</button>
+              )}
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+            <button onClick={handleCustomColorsReset} style={{
+              flex: 1, padding: '12px', borderRadius: 12,
+              border: `1px solid ${theme.border}`, background: theme.card,
+              color: theme.textSub, fontWeight: 600, cursor: 'pointer', fontSize: 13,
+            }}>
+              リセット
+            </button>
+            <button onClick={handleCustomColorsSave} style={{
+              flex: 2, padding: '12px', borderRadius: 12,
+              background: theme.accent, color: '#fff', border: 'none',
+              fontWeight: 700, cursor: 'pointer', fontSize: 13,
+            }}>
+              保存
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Reminder Modal ── */}
+      <Modal open={reminderModal} onClose={() => setReminderModal(false)} title="リマインダー">
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>リマインダーを有効にする</span>
+            <button onClick={() => setReminder(r => ({ ...r, enabled: !r.enabled }))} style={{
+              width: 48, height: 26, borderRadius: 13, cursor: 'pointer', border: 'none',
+              background: reminder.enabled ? theme.accent : theme.border,
+              position: 'relative', transition: 'background 0.2s',
+            }}>
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%', background: '#fff',
+                position: 'absolute', top: 2,
+                left: reminder.enabled ? 24 : 2,
+                transition: 'left 0.2s',
+              }} />
+            </button>
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>通知時刻</label>
+            <input type="time" value={reminder.time}
+              onChange={e => setReminder(r => ({ ...r, time: e.target.value }))}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 10,
+                border: `1px solid ${theme.border}`, background: theme.cardAlt,
+                color: theme.text, fontSize: 14, boxSizing: 'border-box',
+              }} />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>メッセージ</label>
+            <input type="text" value={reminder.message}
+              onChange={e => setReminder(r => ({ ...r, message: e.target.value }))}
+              maxLength={100}
+              style={{
+                width: '100%', padding: '10px 12px', borderRadius: 10,
+                border: `1px solid ${theme.border}`, background: theme.cardAlt,
+                color: theme.text, fontSize: 14, boxSizing: 'border-box',
+              }} />
+          </div>
+          <button onClick={handleReminderSave} style={{
             width: '100%', background: theme.accent, color: '#fff',
             border: 'none', borderRadius: 12, padding: '14px', fontWeight: 700, cursor: 'pointer', fontSize: 15,
           }}>

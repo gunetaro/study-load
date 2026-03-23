@@ -149,6 +149,11 @@ export interface UserSettings {
     long: number
     rounds: number
   }
+  reminder_settings: {
+    enabled: boolean
+    time: string
+    message: string
+  }
 }
 
 export const RANKS = [

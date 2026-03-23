@@ -168,8 +168,8 @@ export default function ProfileTab() {
 
     // ── Pre-calculate content height for vertical centering ──
     const CARDS_H = 90
-    // header(date+name): 36, gap→cards: 42, cards: 90, gap→records: 42, records label: 30
-    let contentH = 36 + 42 + CARDS_H + 42 + 30
+    // header(date+name): 36, gap→cards: 42, cards: 90, gap→records: 42, records label: 30, footer padding: 20
+    let contentH = 36 + 42 + CARDS_H + 42 + 30 + 20
     if (totalSec === 0) {
       contentH += 60
     } else {
@@ -228,8 +228,8 @@ export default function ProfileTab() {
     sf(36, 700); ctx.fillStyle = T.accent
     ctx.fillText(String(level), cardDefs[0].x + PX, SY + PY + 14 + 4 + 32)
     const lvNumW = ctx.measureText(String(level)).width
-    sf(14); ctx.fillStyle = T.textSub
-    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + PX + lvNumW + 8, SY + PY + 14 + 4 + 32)
+    sf(12); ctx.fillStyle = T.textSub
+    ctx.fillText(`XP: ${xp}`, cardDefs[0].x + PX + lvNumW + 14, SY + PY + 14 + 4 + 32)
     const xpBarY = SY + PY + 14 + 4 + 32 + 8
     const xbMax = Math.floor(cardDefs[0].w * 0.70)
     ctx.fillStyle = T.border
@@ -321,7 +321,10 @@ export default function ProfileTab() {
     if (!shareImgUrl) return
     const a = document.createElement('a')
     a.href = shareImgUrl
-    a.download = 'study-load-share.png'
+    const now = new Date()
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}`
+    a.download = `study-load-${ts}.png`
     a.click()
   }
 

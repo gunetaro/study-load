@@ -88,6 +88,7 @@ export interface Material {
   subject_id: string
   name: string
   image_url: string | null
+  memo: string | null
   created_at: string
 }
 

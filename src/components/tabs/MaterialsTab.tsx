@@ -14,7 +14,7 @@ const THEME_PRESET_COLORS: Record<string, string[]> = {
 }
 
 interface EditSubject { id?: string; name: string; icon: string; color: string }
-interface EditMaterial { id?: string; name: string; subject_id: string }
+interface EditMaterial { id?: string; name: string; url: string; memo: string; subject_id: string }
 
 export default function MaterialsTab() {
   const { subjects, refreshSubjects, userId, theme, themeName, showToast } = useApp()
@@ -33,7 +33,7 @@ export default function MaterialsTab() {
 
   // Material edit
   const [materialModal, setMaterialModal] = useState(false)
-  const [editMaterial, setEditMaterial] = useState<EditMaterial>({ name: '', subject_id: '' })
+  const [editMaterial, setEditMaterial] = useState<EditMaterial>({ name: '', url: '', memo: '', subject_id: '' })
   const [savingMaterial, setSavingMaterial] = useState(false)
 
   const loadMaterials = useCallback(async (subjectId: string) => {
@@ -106,25 +106,30 @@ export default function MaterialsTab() {
 
   // Material CRUD
   const openAddMaterial = (subjectId: string) => {
-    setEditMaterial({ name: '', subject_id: subjectId })
+    setEditMaterial({ name: '', url: '', memo: '', subject_id: subjectId })
     setMaterialModal(true)
   }
 
   const openEditMaterial = (m: Material) => {
-    setEditMaterial({ id: m.id, name: m.name, subject_id: m.subject_id })
+    setEditMaterial({ id: m.id, name: m.name, url: m.image_url || '', memo: m.memo || '', subject_id: m.subject_id })
     setMaterialModal(true)
   }
 
   const saveMaterial = async () => {
     if (!editMaterial.name.trim()) { showToast('教材名を入力してください'); return }
     setSavingMaterial(true)
+    const matData = {
+      name: editMaterial.name,
+      image_url: editMaterial.url.trim() || null,
+      memo: editMaterial.memo.trim() || null,
+    }
     if (editMaterial.id) {
-      await supabase.from('materials').update({ name: editMaterial.name }).eq('id', editMaterial.id)
+      await supabase.from('materials').update(matData).eq('id', editMaterial.id)
     } else {
       await supabase.from('materials').insert({
         user_id: userId,
         subject_id: editMaterial.subject_id,
-        name: editMaterial.name,
+        ...matData,
       })
     }
     await reloadMaterials(editMaterial.subject_id)
@@ -196,15 +201,23 @@ export default function MaterialsTab() {
               {(materials[s.id] || []).map(m => (
                 <div key={m.id} style={{
                   background: theme.card, borderRadius: 10, padding: '10px 14px',
-                  marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10,
-                  border: `1px solid ${theme.border}`,
+                  marginBottom: 6, border: `1px solid ${theme.border}`,
                 }}>
-                  <span style={{ fontSize: 20 }}>📖</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: theme.text }}>{m.name}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: theme.text }}>{m.name}</span>
+                        {m.image_url && (
+                          <a href={m.image_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 14, textDecoration: 'none', flexShrink: 0 }}>🔗</a>
+                        )}
+                      </div>
+                      {m.memo && (
+                        <div style={{ fontSize: 12, color: theme.textSub, marginTop: 4, lineHeight: 1.4, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{m.memo}</div>
+                      )}
+                    </div>
+                    <button onClick={() => openEditMaterial(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, flexShrink: 0 }}>✏️</button>
+                    <button onClick={() => deleteMaterial(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: theme.danger, flexShrink: 0 }}>🗑</button>
                   </div>
-                  <button onClick={() => openEditMaterial(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15 }}>✏️</button>
-                  <button onClick={() => deleteMaterial(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: theme.danger }}>🗑</button>
                 </div>
               ))}
             </div>
@@ -296,7 +309,7 @@ export default function MaterialsTab() {
       {/* Material Modal */}
       <Modal open={materialModal} onClose={() => setMaterialModal(false)} title={editMaterial.id ? '教材を編集' : '教材を追加'}>
         <div>
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 12 }}>
             <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>教材名</label>
             <input
               value={editMaterial.name}
@@ -305,7 +318,35 @@ export default function MaterialsTab() {
               style={{
                 width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
                 background: theme.cardAlt, color: theme.text, fontSize: 14,
-                padding: '10px 12px', fontFamily: 'inherit',
+                padding: '10px 12px', fontFamily: 'inherit', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>URL（任意）</label>
+            <input
+              value={editMaterial.url}
+              onChange={e => setEditMaterial(p => ({ ...p, url: e.target.value }))}
+              placeholder="例: https://example.com/textbook"
+              type="url"
+              style={{
+                width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
+                background: theme.cardAlt, color: theme.text, fontSize: 14,
+                padding: '10px 12px', fontFamily: 'inherit', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>詳細メモ（任意）</label>
+            <textarea
+              value={editMaterial.memo}
+              onChange={e => setEditMaterial(p => ({ ...p, memo: e.target.value }))}
+              placeholder="教材の説明や進捗メモなど"
+              rows={3}
+              style={{
+                width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
+                background: theme.cardAlt, color: theme.text, fontSize: 14,
+                padding: '10px 12px', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box',
               }}
             />
           </div>

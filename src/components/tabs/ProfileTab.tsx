@@ -272,9 +272,11 @@ export default function ProfileTab() {
       ctx.fillText('合計', L, y + 12)
       y += 24 + 12  // label + gap to subject bars
 
-      // Subject bars — proportional to totalSec, with visual hierarchy
-      const BAR_MAX = Math.round(CW * 0.75)
+      // Subject bars — indented 20px, proportional to totalSec
+      const INDENT = 20
+      const SL = L + INDENT  // subject list left edge
       const timeX = R  // fixed right-align x for all time texts
+      const BAR_MAX = Math.round((R - SL) * 0.75)
       topSubj.forEach((s, i) => {
         const isTop = i < 2
         const barH = isTop ? 10 : 7
@@ -285,7 +287,7 @@ export default function ProfileTab() {
         } else {
           ctx.globalAlpha = 0.6; sf(13); ctx.fillStyle = T.textSub
         }
-        ctx.fillText(s.name, L, y + 14)
+        ctx.fillText(s.name, SL, y + 14)
         ctx.textAlign = 'right'
         if (isTop) {
           sf(14, 600); ctx.fillStyle = T.text
@@ -296,16 +298,16 @@ export default function ProfileTab() {
         ctx.textAlign = 'left'
         if (!isTop) ctx.globalAlpha = 1.0
 
-        // Bar — 4px below text
+        // Bar — 4px below text, aligned with subject name
         const barY = y + 18
         ctx.fillStyle = T.border
-        roundRect(ctx, L, barY, BAR_MAX, barH, barH / 2); ctx.fill()
+        roundRect(ctx, SL, barY, BAR_MAX, barH, barH / 2); ctx.fill()
         // Bar fill — proportional to total time
         const ratio = s.sec / totalSec
         const barW = Math.max(Math.round(BAR_MAX * ratio), 20)
         ctx.globalAlpha = isTop ? 0.9 : 0.3
         ctx.fillStyle = s.color
-        roundRect(ctx, L, barY, barW, barH, barH / 2); ctx.fill()
+        roundRect(ctx, SL, barY, barW, barH, barH / 2); ctx.fill()
         ctx.globalAlpha = 1.0
 
         y += (isTop ? 28 : 25) + 14  // row height + gap between subjects
@@ -313,7 +315,7 @@ export default function ProfileTab() {
 
       if (restSubj.length > 0) {
         ctx.globalAlpha = 0.6; sf(13); ctx.fillStyle = T.textSub
-        ctx.fillText(`他${restSubj.length}教科  ${fmt(restSec)}`, L, y + 14)
+        ctx.fillText(`他${restSubj.length}教科  ${fmt(restSec)}`, SL, y + 14)
         ctx.globalAlpha = 1.0
       }
     }

@@ -117,6 +117,9 @@ export default function ProfileTab() {
     const canvas = canvasRef.current
     if (!canvas || !profile) return
 
+    // Ensure fonts are loaded for canvas
+    await document.fonts.ready
+
     // Fetch today's sessions
     const todayStr = new Date().toLocaleDateString('en-CA')
     const { data: todaySessions } = await supabase
@@ -125,16 +128,20 @@ export default function ProfileTab() {
       .eq('user_id', userId)
       .eq('date', todayStr)
 
-    // Aggregate by subject
     const subjectTotals: Record<string, number> = {}
     for (const sess of todaySessions || []) {
       subjectTotals[sess.subject_id] = (subjectTotals[sess.subject_id] || 0) + sess.duration
     }
     const totalTodaySec = Object.values(subjectTotals).reduce((a, b) => a + b, 0)
-    const subjectItems = subjects
+    const allSubjectItems = subjects
       .filter(s => subjectTotals[s.id])
       .map(s => ({ ...s, sec: subjectTotals[s.id] }))
       .sort((a, b) => b.sec - a.sec)
+
+    const MAX_SUBJ = 5
+    const topSubjects = allSubjectItems.slice(0, MAX_SUBJ)
+    const restSubjects = allSubjectItems.slice(MAX_SUBJ)
+    const restSec = restSubjects.reduce((sum, s) => sum + s.sec, 0)
 
     const fmt = (sec: number) => {
       const h = Math.floor(sec / 3600)
@@ -149,157 +156,158 @@ export default function ProfileTab() {
       ? TITLES.find(tt => tt.key === profile.selected_title)?.label
       : null
 
-    const canvasH = totalTodaySec > 0 ? 780 + Math.max(0, subjectItems.length - 4) * 52 : 680
     canvas.width = 1200
-    canvas.height = canvasH
+    canvas.height = 630
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
     const t = THEMES[themeName]
+    const L = 60        // left margin
+    const R = 1140      // right edge
+    const CW = R - L    // content width
+    const FONT = `"DM Sans", system-ui, -apple-system, sans-serif`
 
-    // Background
-    ctx.fillStyle = t.bg
-    ctx.fillRect(0, 0, 1200, canvasH)
-
-    // Top accent bar
-    ctx.fillStyle = t.accent
-    ctx.fillRect(0, 0, 1200, 8)
-
-    // App title
-    ctx.fillStyle = t.text
-    ctx.font = 'bold 48px sans-serif'
-    ctx.fillText('Study Load', 80, 100)
-
-    // User name
-    ctx.fillStyle = t.text
-    ctx.font = '28px sans-serif'
-    ctx.fillText(profile.name || userMeta?.full_name || 'ユーザー', 80, 145)
-
-    // Selected title
-    let dateY = 185
-    if (selectedTitleLabel) {
-      ctx.fillStyle = t.accent
-      ctx.font = '20px sans-serif'
-      ctx.fillText(`✨ ${selectedTitleLabel}`, 80, 178)
-      dateY = 210
+    const sf = (size: number, bold = false) => {
+      ctx.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`
     }
 
-    // Date
+    // ── Background ──
+    ctx.fillStyle = t.bg
+    ctx.fillRect(0, 0, 1200, 630)
+
+    // Top accent bar (4px)
+    ctx.fillStyle = t.accent
+    ctx.fillRect(0, 0, 1200, 4)
+
+    // ── Header (y: 4–100) ──
+
+    // "Study Load" logo
+    sf(18)
+    ctx.fillStyle = t.textSub
+    ctx.fillText('Study Load', L, 42)
+
+    // Date (right-aligned)
     const todayLabel = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+    sf(16)
     ctx.fillStyle = t.textSub
-    ctx.font = '18px sans-serif'
-    ctx.fillText(todayLabel, 80, dateY)
+    ctx.textAlign = 'right'
+    ctx.fillText(todayLabel, R, 42)
+    ctx.textAlign = 'left'
 
-    // Stats cards
-    const cardsY = dateY + 28
+    // User name
+    const nameStr = profile.name || userMeta?.full_name || 'ユーザー'
+    sf(28, true)
+    ctx.fillStyle = t.text
+    ctx.fillText(nameStr, L, 82)
 
-    // Level card
-    ctx.fillStyle = t.card
-    roundRect(ctx, 80, cardsY, 320, 180, 20)
-    ctx.fill()
-    ctx.fillStyle = t.textSub
-    ctx.font = '22px sans-serif'
-    ctx.fillText('レベル', 110, cardsY + 44)
-    ctx.fillStyle = t.accent
-    ctx.font = 'bold 80px sans-serif'
-    ctx.fillText(String(level), 110, cardsY + 138)
-    ctx.fillStyle = t.border
-    roundRect(ctx, 110, cardsY + 152, 260, 10, 5)
-    ctx.fill()
-    ctx.fillStyle = t.accent
-    roundRect(ctx, 110, cardsY + 152, Math.max(260 * xpProgress / 100, 8), 10, 5)
-    ctx.fill()
-    ctx.fillStyle = t.textSub
-    ctx.font = '18px sans-serif'
-    ctx.fillText(`XP: ${xp}`, 110, cardsY + 178)
-
-    // Rank card
-    ctx.fillStyle = t.card
-    roundRect(ctx, 440, cardsY, 320, 180, 20)
-    ctx.fill()
-    ctx.fillStyle = t.textSub
-    ctx.font = '22px sans-serif'
-    ctx.fillText('ランク', 470, cardsY + 44)
-    ctx.font = '64px sans-serif'
-    ctx.fillText(currentRank.emoji, 470, cardsY + 128)
-    ctx.fillStyle = t.accent
-    ctx.font = 'bold 24px sans-serif'
-    ctx.fillText(currentRank.name, 550, cardsY + 128)
-
-    // Badge card
-    ctx.fillStyle = t.card
-    roundRect(ctx, 800, cardsY, 320, 180, 20)
-    ctx.fill()
-    ctx.fillStyle = t.textSub
-    ctx.font = '22px sans-serif'
-    ctx.fillText('バッジ', 830, cardsY + 44)
-    ctx.fillStyle = t.accent
-    ctx.font = 'bold 80px sans-serif'
-    ctx.fillText(String(badges.length), 830, cardsY + 138)
-    ctx.fillStyle = t.textSub
-    ctx.font = '22px sans-serif'
-    ctx.fillText(`/ ${BADGES.length}個`, 830, cardsY + 178)
-
-    // Today's study records
-    if (totalTodaySec > 0) {
-      const recY = cardsY + 218
-
-      // Section header
+    // Title inline with name
+    if (selectedTitleLabel) {
+      const nameW = ctx.measureText(nameStr).width
+      sf(18)
       ctx.fillStyle = t.accent
-      ctx.font = 'bold 26px sans-serif'
-      ctx.fillText('今日の記録', 80, recY)
+      ctx.fillText(`✨ ${selectedTitleLabel}`, L + nameW + 14, 82)
+    }
 
-      // Divider
-      ctx.fillStyle = t.border
-      ctx.fillRect(80, recY + 14, 1040, 2)
+    // ── Status bar (y: 100–156) ──
+    ctx.fillStyle = t.card
+    roundRect(ctx, L, 100, CW, 52, 12)
+    ctx.fill()
+    ctx.strokeStyle = t.border
+    ctx.lineWidth = 1
+    roundRect(ctx, L, 100, CW, 52, 12)
+    ctx.stroke()
 
-      // Total time (large)
-      ctx.fillStyle = t.text
-      ctx.font = 'bold 52px sans-serif'
-      ctx.fillText(fmt(totalTodaySec), 80, recY + 78)
+    sf(14, true)
+    const statItems = [
+      { label: `Lv. ${level}`,                      color: t.accent },
+      { label: `${currentRank.emoji} ${currentRank.name}`, color: t.text },
+      { label: `XP: ${xp}`,                         color: t.text },
+      { label: `バッジ: ${badges.length}/${BADGES.length}`, color: t.text },
+    ]
+    const secW = CW / statItems.length
+    statItems.forEach((item, i) => {
+      const cx = L + secW * i + secW / 2
+      const iw = ctx.measureText(item.label).width
+      ctx.fillStyle = item.color
+      ctx.fillText(item.label, cx - iw / 2, 132)
+      if (i < statItems.length - 1) {
+        ctx.fillStyle = t.border
+        ctx.fillRect(L + secW * (i + 1) - 0.5, 110, 1, 32)
+      }
+    })
+
+    // ── Today's records (y: 168–) ──
+    const RY = 172  // records section top
+
+    if (totalTodaySec === 0) {
+      sf(18)
       ctx.fillStyle = t.textSub
-      ctx.font = '20px sans-serif'
-      ctx.fillText('合計', 80, recY + 105)
+      ctx.textAlign = 'center'
+      ctx.fillText('本日の学習記録がありません', 600, 390)
+      ctx.textAlign = 'left'
+    } else {
+      // Section heading
+      sf(16, true)
+      ctx.fillStyle = t.accent
+      ctx.fillText('今日の記録', L, RY + 24)
+      ctx.fillStyle = t.accent
+      ctx.fillRect(L, RY + 30, 56, 2)
+
+      // Total time
+      sf(72, true)
+      ctx.fillStyle = t.accent
+      ctx.fillText(fmt(totalTodaySec), L, RY + 110)
+
+      // "合計" label
+      sf(14)
+      ctx.fillStyle = t.textSub
+      ctx.fillText('合計', L, RY + 130)
 
       // Subject bars
-      const maxSec = subjectItems[0]?.sec || 1
-      const barAreaWidth = 580
-      const barAreaX = 560
-      let barY = recY + 130
+      const maxSec = topSubjects[0]?.sec || 1
+      let rowY = RY + 152
 
-      subjectItems.forEach(s => {
-        // Subject name
+      topSubjects.forEach(s => {
+        // Name (left) + time (right)
+        sf(16)
         ctx.fillStyle = t.text
-        ctx.font = '22px sans-serif'
-        ctx.fillText(s.name, 80, barY + 18)
-
-        // Duration
+        ctx.fillText(s.name, L, rowY + 16)
         ctx.fillStyle = t.textSub
-        ctx.font = '20px sans-serif'
-        ctx.fillText(fmt(s.sec), 360, barY + 18)
+        ctx.textAlign = 'right'
+        ctx.fillText(fmt(s.sec), R, rowY + 16)
+        ctx.textAlign = 'left'
 
         // Bar background
         ctx.fillStyle = t.border
-        roundRect(ctx, barAreaX, barY, barAreaWidth, 26, 13)
+        roundRect(ctx, L, rowY + 22, CW, 8, 4)
         ctx.fill()
 
-        // Bar fill
+        // Bar fill (subject color)
         ctx.fillStyle = s.color
-        const barW = Math.max(Math.round(barAreaWidth * s.sec / maxSec), 26)
-        roundRect(ctx, barAreaX, barY, barW, 26, 13)
+        const barW = Math.max(Math.round(CW * s.sec / maxSec), 24)
+        roundRect(ctx, L, rowY + 22, barW, 8, 4)
         ctx.fill()
 
-        barY += 52
+        rowY += 44
       })
+
+      // 他N教科
+      if (restSubjects.length > 0) {
+        sf(15)
+        ctx.fillStyle = t.textSub
+        ctx.fillText(`他${restSubjects.length}教科  ${fmt(restSec)}`, L, rowY + 16)
+      }
     }
 
-    // Footer
-    ctx.fillStyle = t.textSub
-    ctx.font = '18px sans-serif'
-    ctx.fillText('#StudyLoad', 1020, canvasH - 24)
+    // ── Footer ──
+    sf(16, true)
+    ctx.fillStyle = t.accent
+    ctx.textAlign = 'right'
+    ctx.fillText('#StudyLoad', R, 614)
+    ctx.textAlign = 'left'
 
     setShareImgUrl(canvas.toDataURL('image/png'))
-  }, [profile, themeName, level, xp, xpProgress, currentRank, badges, subjects, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile, themeName, level, xp, currentRank, badges, subjects, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadShare = () => {
     if (!shareImgUrl) return

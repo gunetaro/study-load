@@ -316,17 +316,16 @@ export default function TimerTab() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {subjects.map(s => (
             <button key={s.id} onClick={() => handleSelectSubject(s)} style={{
-              background: theme.card, border: `2px solid ${theme.border}`,
+              background: theme.card, border: `2px solid ${s.color}30`,
               borderRadius: 16, padding: '16px 8px', cursor: 'pointer',
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-              transition: 'border-color 0.15s',
+              transition: 'border-color 0.15s, background 0.15s',
             }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = s.color)}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = theme.border)}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.background = `${s.color}14` }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = `${s.color}30`; e.currentTarget.style.background = theme.card }}
             >
               <SubjectIconDisplay icon={s.icon} size={32} />
               <span style={{ fontSize: 12, fontWeight: 700, color: theme.text }}>{s.name}</span>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
             </button>
           ))}
         </div>

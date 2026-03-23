@@ -7,7 +7,7 @@ import { BADGES, TITLES, THEMES, Theme, RANKS, getRank, XP_PER_LEVEL } from '@/t
 import { useRouter } from 'next/navigation'
 
 export default function ProfileTab() {
-  const { userId, userMeta, profile, badges, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, showToast } = useApp()
+  const { userId, userMeta, profile, badges, subjects, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, showToast } = useApp()
   const supabase = createClient()
   const router = useRouter()
 
@@ -117,8 +117,41 @@ export default function ProfileTab() {
     const canvas = canvasRef.current
     if (!canvas || !profile) return
 
+    // Fetch today's sessions
+    const todayStr = new Date().toLocaleDateString('en-CA')
+    const { data: todaySessions } = await supabase
+      .from('sessions')
+      .select('duration, subject_id')
+      .eq('user_id', userId)
+      .eq('date', todayStr)
+
+    // Aggregate by subject
+    const subjectTotals: Record<string, number> = {}
+    for (const sess of todaySessions || []) {
+      subjectTotals[sess.subject_id] = (subjectTotals[sess.subject_id] || 0) + sess.duration
+    }
+    const totalTodaySec = Object.values(subjectTotals).reduce((a, b) => a + b, 0)
+    const subjectItems = subjects
+      .filter(s => subjectTotals[s.id])
+      .map(s => ({ ...s, sec: subjectTotals[s.id] }))
+      .sort((a, b) => b.sec - a.sec)
+
+    const fmt = (sec: number) => {
+      const h = Math.floor(sec / 3600)
+      const m = Math.floor((sec % 3600) / 60)
+      if (h > 0 && m > 0) return `${h}時間${m}分`
+      if (h > 0) return `${h}時間`
+      if (m > 0) return `${m}分`
+      return `${sec}秒`
+    }
+
+    const selectedTitleLabel = profile.selected_title
+      ? TITLES.find(tt => tt.key === profile.selected_title)?.label
+      : null
+
+    const canvasH = totalTodaySec > 0 ? 780 + Math.max(0, subjectItems.length - 4) * 52 : 680
     canvas.width = 1200
-    canvas.height = 630
+    canvas.height = canvasH
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
@@ -126,81 +159,147 @@ export default function ProfileTab() {
 
     // Background
     ctx.fillStyle = t.bg
-    ctx.fillRect(0, 0, 1200, 630)
+    ctx.fillRect(0, 0, 1200, canvasH)
 
     // Top accent bar
     ctx.fillStyle = t.accent
     ctx.fillRect(0, 0, 1200, 8)
 
-    // Title
+    // App title
     ctx.fillStyle = t.text
-    ctx.font = 'bold 52px sans-serif'
-    ctx.fillText('📚 Study Load', 80, 110)
+    ctx.font = 'bold 48px sans-serif'
+    ctx.fillText('Study Load', 80, 100)
 
+    // User name
+    ctx.fillStyle = t.text
     ctx.font = '28px sans-serif'
-    ctx.fillStyle = t.textSub
-    ctx.fillText(profile.name || userMeta?.full_name || 'ユーザー', 80, 160)
+    ctx.fillText(profile.name || userMeta?.full_name || 'ユーザー', 80, 145)
 
-    const today = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
-    ctx.font = '22px sans-serif'
-    ctx.fillText(today, 80, 200)
+    // Selected title
+    let dateY = 185
+    if (selectedTitleLabel) {
+      ctx.fillStyle = t.accent
+      ctx.font = '20px sans-serif'
+      ctx.fillText(`✨ ${selectedTitleLabel}`, 80, 178)
+      dateY = 210
+    }
+
+    // Date
+    const todayLabel = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+    ctx.fillStyle = t.textSub
+    ctx.font = '18px sans-serif'
+    ctx.fillText(todayLabel, 80, dateY)
+
+    // Stats cards
+    const cardsY = dateY + 28
 
     // Level card
     ctx.fillStyle = t.card
-    roundRect(ctx, 80, 240, 320, 180, 20)
+    roundRect(ctx, 80, cardsY, 320, 180, 20)
     ctx.fill()
     ctx.fillStyle = t.textSub
     ctx.font = '22px sans-serif'
-    ctx.fillText('レベル', 110, 285)
+    ctx.fillText('レベル', 110, cardsY + 44)
     ctx.fillStyle = t.accent
     ctx.font = 'bold 80px sans-serif'
-    ctx.fillText(String(level), 110, 380)
-
-    // XP bar
+    ctx.fillText(String(level), 110, cardsY + 138)
     ctx.fillStyle = t.border
-    roundRect(ctx, 110, 400, 260, 10, 5)
+    roundRect(ctx, 110, cardsY + 152, 260, 10, 5)
     ctx.fill()
     ctx.fillStyle = t.accent
-    roundRect(ctx, 110, 400, Math.max(260 * xpProgress / 100, 8), 10, 5)
+    roundRect(ctx, 110, cardsY + 152, Math.max(260 * xpProgress / 100, 8), 10, 5)
     ctx.fill()
     ctx.fillStyle = t.textSub
     ctx.font = '18px sans-serif'
-    ctx.fillText(`XP: ${xp}`, 110, 430)
+    ctx.fillText(`XP: ${xp}`, 110, cardsY + 178)
 
     // Rank card
     ctx.fillStyle = t.card
-    roundRect(ctx, 440, 240, 320, 180, 20)
+    roundRect(ctx, 440, cardsY, 320, 180, 20)
     ctx.fill()
     ctx.fillStyle = t.textSub
     ctx.font = '22px sans-serif'
-    ctx.fillText('ランク', 470, 285)
+    ctx.fillText('ランク', 470, cardsY + 44)
     ctx.font = '64px sans-serif'
-    ctx.fillText(currentRank.emoji, 470, 375)
+    ctx.fillText(currentRank.emoji, 470, cardsY + 128)
     ctx.fillStyle = t.accent
     ctx.font = 'bold 24px sans-serif'
-    ctx.fillText(currentRank.name, 550, 375)
+    ctx.fillText(currentRank.name, 550, cardsY + 128)
 
     // Badge card
     ctx.fillStyle = t.card
-    roundRect(ctx, 800, 240, 320, 180, 20)
+    roundRect(ctx, 800, cardsY, 320, 180, 20)
     ctx.fill()
     ctx.fillStyle = t.textSub
     ctx.font = '22px sans-serif'
-    ctx.fillText('バッジ', 830, 285)
+    ctx.fillText('バッジ', 830, cardsY + 44)
     ctx.fillStyle = t.accent
     ctx.font = 'bold 80px sans-serif'
-    ctx.fillText(String(badges.length), 830, 380)
+    ctx.fillText(String(badges.length), 830, cardsY + 138)
     ctx.fillStyle = t.textSub
     ctx.font = '22px sans-serif'
-    ctx.fillText(`/ ${BADGES.length}個`, 830, 420)
+    ctx.fillText(`/ ${BADGES.length}個`, 830, cardsY + 178)
+
+    // Today's study records
+    if (totalTodaySec > 0) {
+      const recY = cardsY + 218
+
+      // Section header
+      ctx.fillStyle = t.accent
+      ctx.font = 'bold 26px sans-serif'
+      ctx.fillText('今日の記録', 80, recY)
+
+      // Divider
+      ctx.fillStyle = t.border
+      ctx.fillRect(80, recY + 14, 1040, 2)
+
+      // Total time (large)
+      ctx.fillStyle = t.text
+      ctx.font = 'bold 52px sans-serif'
+      ctx.fillText(fmt(totalTodaySec), 80, recY + 78)
+      ctx.fillStyle = t.textSub
+      ctx.font = '20px sans-serif'
+      ctx.fillText('合計', 80, recY + 105)
+
+      // Subject bars
+      const maxSec = subjectItems[0]?.sec || 1
+      const barAreaWidth = 580
+      const barAreaX = 560
+      let barY = recY + 130
+
+      subjectItems.forEach(s => {
+        // Subject name
+        ctx.fillStyle = t.text
+        ctx.font = '22px sans-serif'
+        ctx.fillText(s.name, 80, barY + 18)
+
+        // Duration
+        ctx.fillStyle = t.textSub
+        ctx.font = '20px sans-serif'
+        ctx.fillText(fmt(s.sec), 360, barY + 18)
+
+        // Bar background
+        ctx.fillStyle = t.border
+        roundRect(ctx, barAreaX, barY, barAreaWidth, 26, 13)
+        ctx.fill()
+
+        // Bar fill
+        ctx.fillStyle = s.color
+        const barW = Math.max(Math.round(barAreaWidth * s.sec / maxSec), 26)
+        roundRect(ctx, barAreaX, barY, barW, 26, 13)
+        ctx.fill()
+
+        barY += 52
+      })
+    }
 
     // Footer
     ctx.fillStyle = t.textSub
     ctx.font = '18px sans-serif'
-    ctx.fillText('#StudyLoad', 980, 590)
+    ctx.fillText('#StudyLoad', 1020, canvasH - 24)
 
     setShareImgUrl(canvas.toDataURL('image/png'))
-  }, [profile, themeName, level, xp, xpProgress, currentRank, badges])
+  }, [profile, themeName, level, xp, xpProgress, currentRank, badges, subjects, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadShare = () => {
     if (!shareImgUrl) return
@@ -289,7 +388,7 @@ export default function ProfileTab() {
           { label: '🏅 バッジ', onClick: () => setBadgeModal(true) },
           { label: '✨ 称号', onClick: () => setTitleModal(true) },
           { label: '🎨 テーマ', onClick: () => setThemeModal(true) },
-          { label: '🍅 ポモドーロ', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setPomoModal(true) } },
+          { label: '⚡ ポモドーロ', onClick: () => { setPomoEdit({ work: pomoWork, short: pomoShort, long: pomoLong, rounds: pomoRounds }); setPomoModal(true) } },
           { label: '📊 シェア画像', onClick: generateShareImage },
           { label: '🚪 ログアウト', onClick: handleLogout },
         ].map(btn => (

@@ -7,7 +7,7 @@ import { BADGES, TITLES, THEMES, Theme, RANKS, getRank, XP_PER_LEVEL } from '@/t
 import { useRouter } from 'next/navigation'
 
 export default function ProfileTab() {
-  const { userId, userMeta, profile, badges, subjects, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, showToast } = useApp()
+  const { userId, userMeta, profile, badges, subjects, goal, theme, themeName, setThemeName, saveSettings, settings, refreshProfile, showToast } = useApp()
   const supabase = createClient()
   const router = useRouter()
 
@@ -117,7 +117,6 @@ export default function ProfileTab() {
     const canvas = canvasRef.current
     if (!canvas || !profile) return
 
-    // Ensure fonts are loaded for canvas
     await document.fonts.ready
 
     // Fetch today's sessions
@@ -143,6 +142,8 @@ export default function ProfileTab() {
     const restSubjects = allSubjectItems.slice(MAX_SUBJ)
     const restSec = restSubjects.reduce((sum, s) => sum + s.sec, 0)
 
+    const dailyGoalSec = (goal?.daily_minutes ?? 120) * 60
+
     const fmt = (sec: number) => {
       const h = Math.floor(sec / 3600)
       const m = Math.floor((sec % 3600) / 60)
@@ -162,152 +163,148 @@ export default function ProfileTab() {
     if (!ctx) return
 
     const t = THEMES[themeName]
-    const L = 60        // left margin
-    const R = 1140      // right edge
-    const CW = R - L    // content width
-    const FONT = `"DM Sans", system-ui, -apple-system, sans-serif`
-
-    const sf = (size: number, bold = false) => {
-      ctx.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`
+    const L = 64
+    const R = 1136
+    const CW = R - L
+    const F = `"DM Sans", system-ui, -apple-system, sans-serif`
+    const sf = (size: number, weight: 400 | 600 | 700 = 400) => {
+      ctx.font = `${weight === 400 ? '' : weight + ' '}${size}px ${F}`.trim()
     }
 
     // ── Background ──
     ctx.fillStyle = t.bg
     ctx.fillRect(0, 0, 1200, 630)
 
-    // Top accent bar (4px)
+    // Top accent bar (3px)
     ctx.fillStyle = t.accent
-    ctx.fillRect(0, 0, 1200, 4)
+    ctx.fillRect(0, 0, 1200, 3)
 
-    // ── Header (y: 4–100) ──
-
-    // "Study Load" logo
-    sf(18)
-    ctx.fillStyle = t.textSub
-    ctx.fillText('Study Load', L, 42)
-
-    // Date (right-aligned)
-    const todayLabel = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
+    // ── Row 1: logo + date (y≈36) ──
     sf(16)
     ctx.fillStyle = t.textSub
+    ctx.fillText('Study Load', L, 38)
+
+    const todayLabel = new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })
     ctx.textAlign = 'right'
-    ctx.fillText(todayLabel, R, 42)
+    ctx.fillText(todayLabel, R, 38)
     ctx.textAlign = 'left'
 
-    // User name
+    // ── Row 2: name + title (y≈64) ──
     const nameStr = profile.name || userMeta?.full_name || 'ユーザー'
-    sf(28, true)
+    sf(24, 700)
     ctx.fillStyle = t.text
-    ctx.fillText(nameStr, L, 82)
+    ctx.fillText(nameStr, L, 66)
 
-    // Title inline with name
     if (selectedTitleLabel) {
-      const nameW = ctx.measureText(nameStr).width
-      sf(18)
+      const nw = ctx.measureText(nameStr).width
+      sf(16)
       ctx.fillStyle = t.accent
-      ctx.fillText(`✨ ${selectedTitleLabel}`, L + nameW + 14, 82)
+      ctx.fillText(`✨ ${selectedTitleLabel}`, L + nw + 12, 66)
     }
 
-    // ── Status bar (y: 100–156) ──
+    // ── Status bar (y: 80–132) ──
     ctx.fillStyle = t.card
-    roundRect(ctx, L, 100, CW, 52, 12)
+    roundRect(ctx, L, 80, CW, 46, 10)
     ctx.fill()
     ctx.strokeStyle = t.border
     ctx.lineWidth = 1
-    roundRect(ctx, L, 100, CW, 52, 12)
+    roundRect(ctx, L, 80, CW, 46, 10)
     ctx.stroke()
 
-    sf(14, true)
+    sf(14, 600)
     const statItems = [
-      { label: `Lv. ${level}`,                      color: t.accent },
+      { label: `Lv. ${level}`,                           color: t.accent },
       { label: `${currentRank.emoji} ${currentRank.name}`, color: t.text },
-      { label: `XP: ${xp}`,                         color: t.text },
+      { label: `XP: ${xp}`,                              color: t.text },
       { label: `バッジ: ${badges.length}/${BADGES.length}`, color: t.text },
     ]
-    const secW = CW / statItems.length
+    const sw = CW / statItems.length
     statItems.forEach((item, i) => {
-      const cx = L + secW * i + secW / 2
+      const cx = L + sw * i + sw / 2
       const iw = ctx.measureText(item.label).width
       ctx.fillStyle = item.color
-      ctx.fillText(item.label, cx - iw / 2, 132)
+      ctx.fillText(item.label, cx - iw / 2, 109)
       if (i < statItems.length - 1) {
         ctx.fillStyle = t.border
-        ctx.fillRect(L + secW * (i + 1) - 0.5, 110, 1, 32)
+        ctx.fillRect(L + sw * (i + 1) - 0.5, 88, 1, 30)
       }
     })
 
-    // ── Today's records (y: 168–) ──
-    const RY = 172  // records section top
+    // ── Main: today's records (y: 144–) ──
+    const MY = 148
+
+    // "今日の記録" heading
+    sf(14, 600)
+    ctx.fillStyle = t.accent
+    ctx.fillText('今日の記録', L, MY + 16)
 
     if (totalTodaySec === 0) {
       sf(18)
       ctx.fillStyle = t.textSub
-      ctx.textAlign = 'center'
-      ctx.fillText('本日の学習記録がありません', 600, 390)
-      ctx.textAlign = 'left'
+      ctx.fillText('本日の学習記録がありません', L, MY + 70)
     } else {
-      // Section heading
-      sf(16, true)
+      // Total time: large part + goal part
+      sf(56, 600)
       ctx.fillStyle = t.accent
-      ctx.fillText('今日の記録', L, RY + 24)
-      ctx.fillStyle = t.accent
-      ctx.fillRect(L, RY + 30, 56, 2)
+      const totalStr = fmt(totalTodaySec)
+      ctx.fillText(totalStr, L, MY + 76)
+      const totalW = ctx.measureText(totalStr).width
 
-      // Total time
-      sf(72, true)
-      ctx.fillStyle = t.accent
-      ctx.fillText(fmt(totalTodaySec), L, RY + 110)
+      sf(20)
+      ctx.fillStyle = t.textSub
+      ctx.fillText(` / ${fmt(dailyGoalSec)}`, L + totalW, MY + 70)
 
       // "合計" label
-      sf(14)
+      sf(12)
       ctx.fillStyle = t.textSub
-      ctx.fillText('合計', L, RY + 130)
+      ctx.fillText('合計', L, MY + 92)
 
-      // Subject bars
-      const maxSec = topSubjects[0]?.sec || 1
-      let rowY = RY + 152
+      // ── Subject bars ──
+      const BAR_MAX_W = Math.round(CW * 0.80)  // 80% of content width
+      let rowY = MY + 112
 
       topSubjects.forEach(s => {
         // Name (left) + time (right)
-        sf(16)
+        sf(14)
         ctx.fillStyle = t.text
-        ctx.fillText(s.name, L, rowY + 16)
+        ctx.fillText(s.name, L, rowY + 13)
         ctx.fillStyle = t.textSub
         ctx.textAlign = 'right'
-        ctx.fillText(fmt(s.sec), R, rowY + 16)
+        ctx.fillText(fmt(s.sec), R, rowY + 13)
         ctx.textAlign = 'left'
 
-        // Bar background
+        // Bar background (80% width)
         ctx.fillStyle = t.border
-        roundRect(ctx, L, rowY + 22, CW, 8, 4)
+        roundRect(ctx, L, rowY + 18, BAR_MAX_W, 6, 3)
         ctx.fill()
 
-        // Bar fill (subject color)
+        // Bar fill: ratio against daily goal
+        const ratio = Math.min(s.sec / dailyGoalSec, 1)
+        const barW = Math.max(Math.round(BAR_MAX_W * ratio), 12)
         ctx.fillStyle = s.color
-        const barW = Math.max(Math.round(CW * s.sec / maxSec), 24)
-        roundRect(ctx, L, rowY + 22, barW, 8, 4)
+        roundRect(ctx, L, rowY + 18, barW, 6, 3)
         ctx.fill()
 
-        rowY += 44
+        rowY += 38
       })
 
       // 他N教科
       if (restSubjects.length > 0) {
-        sf(15)
+        sf(13)
         ctx.fillStyle = t.textSub
-        ctx.fillText(`他${restSubjects.length}教科  ${fmt(restSec)}`, L, rowY + 16)
+        ctx.fillText(`他${restSubjects.length}教科  ${fmt(restSec)}`, L, rowY + 13)
       }
     }
 
     // ── Footer ──
-    sf(16, true)
+    sf(14, 600)
     ctx.fillStyle = t.accent
     ctx.textAlign = 'right'
-    ctx.fillText('#StudyLoad', R, 614)
+    ctx.fillText('#StudyLoad', R, 616)
     ctx.textAlign = 'left'
 
     setShareImgUrl(canvas.toDataURL('image/png'))
-  }, [profile, themeName, level, xp, currentRank, badges, subjects, userId]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile, themeName, level, xp, currentRank, badges, subjects, goal, userId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const downloadShare = () => {
     if (!shareImgUrl) return

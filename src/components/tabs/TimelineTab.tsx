@@ -27,6 +27,7 @@ export default function TimelineTab() {
   const [editMemo, setEditMemo] = useState('')
   const [editTags, setEditTags] = useState<string[]>([])
   const [editTagInput, setEditTagInput] = useState('')
+  const [editUrl, setEditUrl] = useState('')
   const [editMaterialId, setEditMaterialId] = useState<string | null>(null)
   const [editMaterials, setEditMaterials] = useState<Material[]>([])
 
@@ -70,6 +71,7 @@ export default function TimelineTab() {
   const handleEdit = async (s: Session) => {
     setEditSession(s)
     setEditMemo(s.memo || '')
+    setEditUrl(s.url || '')
     setEditTags((s.session_tags || []).map(t => t.tag))
     setEditTagInput('')
     setEditMaterialId(s.material_id || null)
@@ -90,7 +92,7 @@ export default function TimelineTab() {
 
   const handleSaveEdit = async () => {
     if (!editSession) return
-    await supabase.from('sessions').update({ memo: editMemo || null, material_id: editMaterialId || null }).eq('id', editSession.id)
+    await supabase.from('sessions').update({ memo: editMemo || null, url: editUrl.trim() || null, material_id: editMaterialId || null }).eq('id', editSession.id)
     await supabase.from('session_tags').delete().eq('session_id', editSession.id)
     const finalTags = editTagInput.trim() ? [...editTags, editTagInput.trim().replace(/^#+/, '')] : editTags
     if (finalTags.length > 0) await supabase.from('session_tags').insert(finalTags.map(tag => ({ session_id: editSession.id, tag })))
@@ -246,9 +248,13 @@ export default function TimelineTab() {
                   </div>
 
                   {/* Material + time */}
-                  <div style={{ display: 'flex', gap: 8, fontSize: 10, color: theme.textSub, marginBottom: (s.session_tags?.length || s.memo) ? 4 : 0 }}>
+                  <div style={{ display: 'flex', gap: 8, fontSize: 10, color: theme.textSub, marginBottom: (s.session_tags?.length || s.memo || s.url) ? 4 : 0 }}>
                     {s.materials && <span>📖 {s.materials.name}</span>}
                     {s.start_time && <span>{s.start_time.slice(0, 5)}</span>}
+                    {s.url && (
+                      <a href={s.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                        style={{ color: theme.accent, textDecoration: 'none', fontWeight: 600 }}>🔗 リンク</a>
+                    )}
                   </div>
 
                   {/* Tags */}
@@ -315,6 +321,20 @@ export default function TimelineTab() {
                 width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
                 background: theme.cardAlt, color: theme.text, fontSize: 13,
                 padding: '9px 12px', resize: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          {/* URL */}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>🔗 URL</label>
+            <input
+              type="url" value={editUrl} onChange={e => setEditUrl(e.target.value)}
+              placeholder="GoogleドライブやWebサイトのURL"
+              style={{
+                width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
+                background: theme.cardAlt, color: theme.text, fontSize: 13,
+                padding: '9px 12px', fontFamily: 'inherit', boxSizing: 'border-box',
               }}
             />
           </div>

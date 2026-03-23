@@ -104,6 +104,7 @@ export interface Session {
   break_time: number
   pomo_rounds: number
   memo: string | null
+  url: string | null
   created_at: string
   subjects?: Subject
   materials?: Material

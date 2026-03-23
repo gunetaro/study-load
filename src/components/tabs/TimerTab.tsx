@@ -21,6 +21,7 @@ export default function TimerTab() {
   const [materials, setMaterials] = useState<Material[]>([])
   const [elapsed, setElapsed] = useState(0)
   const [memo, setMemo] = useState('')
+  const [sessionUrl, setSessionUrl] = useState('')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([])
@@ -221,6 +222,7 @@ export default function TimerTab() {
       start_time,
       duration: totalSec,
       memo: memo || null,
+      url: sessionUrl.trim() || null,
     }
     console.log('[sessions] insert payload:', JSON.stringify(insertPayload))
     const { data: session, error } = await supabase.from('sessions').insert(insertPayload).select().single()
@@ -259,6 +261,7 @@ export default function TimerTab() {
     setSaving(false)
     setShowSave(false)
     setMemo('')
+    setSessionUrl('')
     setTags([])
     setTagInput('')
     setElapsed(0)
@@ -311,6 +314,7 @@ export default function TimerTab() {
     setSelectedSubject(null)
     setSelectedMaterial(null)
     setMemo('')
+    setSessionUrl('')
     setTags([])
     setTagInput('')
   }
@@ -733,6 +737,19 @@ export default function TimerTab() {
                   width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
                   background: theme.cardAlt, color: theme.text, fontSize: 14,
                   padding: '10px 12px', resize: 'none', fontFamily: 'inherit',
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 13, color: theme.textSub, display: 'block', marginBottom: 6 }}>🔗 URL</label>
+              <input
+                type="url" value={sessionUrl} onChange={e => setSessionUrl(e.target.value)}
+                placeholder="GoogleドライブやWebサイトのURLを貼り付け"
+                style={{
+                  width: '100%', borderRadius: 10, border: `1px solid ${theme.border}`,
+                  background: theme.cardAlt, color: theme.text, fontSize: 14,
+                  padding: '10px 12px', fontFamily: 'inherit', boxSizing: 'border-box',
                 }}
               />
             </div>

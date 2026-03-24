@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { fmtDuration, Session, getRank } from '@/types'
+import { SubjectIconDisplay } from '@/components/ui/SubjectIconPicker'
 import { StatsSkeleton } from '@/components/ui/Skeleton'
 import { getDemoSessions } from '@/lib/demo-data'
 
@@ -114,7 +115,7 @@ export default function StatsTab() {
     return <>{data.map(s => (
       <div key={s.id} style={{ marginBottom: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-          <span style={{ fontSize: 12, color: theme.text }}>{s.icon} {s.name}</span>
+          <span style={{ fontSize: 12, color: theme.text, display: 'flex', alignItems: 'center', gap: 4 }}><SubjectIconDisplay icon={s.icon} size={16} /> {s.name}</span>
           <span style={{ fontSize: 11, color: theme.textSub }}>{fmtDuration(s.sec)}{total > 0 ? ` / ${fmtDuration(goalDaily)}` : ''}</span>
         </div>
         <div style={{ height: 6, background: theme.border, borderRadius: 3 }}>
@@ -243,7 +244,7 @@ export default function StatsTab() {
               return (
                 <div key={s.id} style={{ marginBottom: i < todaySessions.length - 1 ? 8 : 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                    <span style={{ fontSize: 12, color: theme.text }}>{s.start_time?.slice(0,5)} {sub?.icon} {sub?.name}</span>
+                    <span style={{ fontSize: 12, color: theme.text, display: 'flex', alignItems: 'center', gap: 4 }}>{s.start_time?.slice(0,5)} {sub && <SubjectIconDisplay icon={sub.icon} size={14} />} {sub?.name}</span>
                     <span style={{ fontSize: 11, color: theme.textSub }}>{fmtDuration(s.duration)}</span>
                   </div>
                   <div style={{ height: 8, background: theme.border, borderRadius: 4 }}>
@@ -429,7 +430,7 @@ export default function StatsTab() {
           return (
             <Card key={s.id}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                <span style={{ fontSize: 20 }}>{s.icon}</span>
+                <SubjectIconDisplay icon={s.icon} size={20} />
                 <span style={{ fontSize: 15, fontWeight: 700, color: theme.text, flex: 1 }}>{s.name}</span>
                 <span style={{ fontSize: 15, fontWeight: 800, color: s.color }}>{fmtDuration(s.sec)}</span>
               </div>

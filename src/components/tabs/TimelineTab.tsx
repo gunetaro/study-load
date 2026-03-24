@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/contexts/AppContext'
 import { Modal } from '@/components/ui/Modal'
 import { Session, Material, fmtDuration, getRank } from '@/types'
+import { SubjectIconDisplay } from '@/components/ui/SubjectIconPicker'
 import { TimelineSkeleton } from '@/components/ui/Skeleton'
 import { getDemoSessions } from '@/lib/demo-data'
 
@@ -261,7 +262,7 @@ export default function TimelineTab() {
                 }}>
                   {/* Top row: subject + duration + buttons */}
                   <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                    <span style={{ fontSize: 14 }}>{subj?.icon}</span>
+                    {subj && <SubjectIconDisplay icon={subj.icon} size={16} />}
                     <span style={{ fontSize: 12, fontWeight: 700, color: theme.text, marginLeft: 4, flex: 1 }}>{subj?.name}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: subj?.color || theme.accent, marginRight: 6 }}>{fmtDuration(s.duration)}</span>
                     <button onClick={() => handleEdit(s)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, padding: '2px 4px' }}>✏️</button>
